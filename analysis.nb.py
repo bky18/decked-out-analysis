@@ -1,5 +1,6 @@
 # %%
 # %matplotlib widget
+# NOTE: try `%matplotlib inline`` if this gives you problems
 
 import functools as ft
 from collections import defaultdict
