@@ -93,6 +93,31 @@ class LegendaryCard(Card):
 
 @dataclass
 class Deck:
+    """
+    Create a deck from a dict of cards, or a string
+
+    Parameters
+    ----------
+    source : dict[str, int] | str | None
+        The cards to populate the deck with.
+
+        If `source` is a string, it can be in 2 formats
+        - <short name>x<count>
+        - <short name>[+-]<count>
+    allow_negative : bool
+        If False, raise an error when initializing a deck with negative card counts.
+
+    Example
+    -------
+    >>> Deck(source="STAx2")
+
+    Creates a deck with 2 stability
+
+    >>> Deck(source="TRH+1, SNE-1")
+
+    Create a deck with 1 Treasure Hunter, and -1 Sneak
+    """
+
     source: InitVar[dict[str, int] | str | None]
     cards: dict[str, int] = field(default_factory=dict, init=False)
 
