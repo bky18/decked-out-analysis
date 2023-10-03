@@ -120,6 +120,7 @@ class Deck:
 
     source: InitVar[dict[str, int] | str | None]
     cards: dict[str, int] = field(default_factory=dict, init=False)
+    allow_negative: bool = False
 
     def __post_init__(self, source: dict[str, int] | str | None):
         if isinstance(source, str):
@@ -133,10 +134,8 @@ class Deck:
                 short_name = ci[:3]
                 count = int(ci[3:] or 1)
 
-                if count < 0:
-                    raise ValueError(
-                        f"Not allowed: {short_name} has a count less than 0"
-                    )
+                if (not self.allow_negative) and count < 0:
+                    raise ValueError(f"{short_name}: Negative card counts not allowed")
                 source[short_name] = count
 
         # by default, the count of a card is 0
@@ -188,11 +187,11 @@ class Deck:
 
         # add a single card
         if isinstance(__o, Card):
-            return self + Deck({__o.short_name: 1})
+            return self + Deck({__o.short_name: 1}, allow_negative=True)
 
         # try constructing a deck from the input and adding it
         try:
-            return self + Deck(__o)
+            return self + Deck(__o, allow_negative=True)
         except Exception:
             return NotImplemented
 
