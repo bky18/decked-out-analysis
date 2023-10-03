@@ -129,8 +129,9 @@ class Deck:
 
             for ci in card_info:
                 # hacky way of making count default to 1 if the string can't be split
-                short_name, *_count = ci.strip().split("x")
-                count = int(_count[0]) if _count else 1
+                ci = ci.strip().replace("x", "")
+                short_name = ci[:3]
+                count = int(ci[3:] or 1)
 
                 if count < 0:
                     raise ValueError(
