@@ -45,6 +45,35 @@ Hermit = pd.CategoricalDtype(
     ]
 )
 
+# maps hermit's nicknames to full names
+FULL_NAMES = {
+    "Bdubs": "BdoubleO100",
+    "Cub": "Cubfan135",
+    "Doc": "Docm77",
+    "Etho": "Ethoslab",
+    "False": "FalseSymmetry",
+    "Gem": "GeminiTay",
+    "Grian": "Grian",
+    "Hypno": "Hypnotizd",
+    "Jevin": "iJevin",
+    "Impulse": "impulseSV",
+    "Iskall": "iskall85",
+    "Joe": "JoeHills",
+    "Keralis": "Keralis",
+    "Mumbo": "MumboJumbo",
+    "Pearl": "Pearl",
+    "Ren": "Rendog",
+    "Scar": "Scar",
+    "Stress": "Stress",
+    "Tango": "TangoTek",
+    "Beef": "VintageBeef",
+    "Wels": "Welsknight",
+    "xB": "xBCrafted",
+    "X": "Xisuma",
+    "Zed": "Zedaph",
+    "Cleo": "ZombieCleo",
+}
+
 
 @dtype
 class Difficulty(IntEnum):
