@@ -22,30 +22,6 @@ pd.set_option("display.max_rows", 50)
 
 
 # %%
-def read_url(
-    sheet_id: str,
-    sub_sheet: int | str | None = None,
-    mode: Literal["HTML", "CSV"] = "HTML",
-):
-    if mode == "CSV":
-        sheet_url = (
-            f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
-        )
-        if sub_sheet:
-            sheet_url += f"&gid={sub_sheet}"
-        return pd.read_csv(sheet_url)
-
-        header = csv_sheet.iloc[0]
-        raw_data = csv_sheet[2:]
-    else:
-        sheet_url = (
-            f"https://docs.google.com/spreadsheets/d/e/2PACX-{sheet_id}/pubhtml#"
-        )
-        return pd.read_html(sheet_url)
-    return raw_data
-
-
-# %%
 def get_raw_data(
     sheet_id: str,
     sub_sheet: int | str | None = None,
@@ -59,7 +35,7 @@ def get_raw_data(
         )
         if sub_sheet:
             sheet_url += f"&gid={sub_sheet}"
-        csv_sheet = read_url(sheet_url, sub_sheet, mode)
+        csv_sheet = pd.read_csv(sheet_url)
 
         header = csv_sheet.iloc[0]
         raw_data = csv_sheet[2:]
@@ -67,7 +43,7 @@ def get_raw_data(
         sheet_url = (
             f"https://docs.google.com/spreadsheets/d/e/2PACX-{sheet_id}/pubhtml#"
         )
-        html_sheet = read_url(sheet_url, sub_sheet, mode)[sub_sheet or 0].iloc[:, 1:]
+        html_sheet = pd.read_html(sheet_url)[sub_sheet or 0].iloc[:, 1:]
         # drop one of the extra "Run No." Columns
         html_sheet.drop(html_sheet.columns[1], axis=1, inplace=True)
         header = html_sheet.iloc[1]
