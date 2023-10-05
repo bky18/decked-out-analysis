@@ -22,6 +22,26 @@ pd.set_option("display.max_rows", 50)
 
 
 # %%
+def read_url(
+    sheet_id: str,
+    sub_sheet: int | str | None = None,
+    mode: Literal["HTML", "CSV"] = "HTML",
+):
+    if mode == "CSV":
+        sheet_url = (
+            f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
+        )
+        if sub_sheet:
+            sheet_url += f"&gid={sub_sheet}"
+        return pd.read_csv(sheet_url)
+    else:
+        sheet_url = (
+            f"https://docs.google.com/spreadsheets/d/e/2PACX-{sheet_id}/pubhtml#"
+        )
+        return pd.read_html(sheet_url)[sub_sheet or 0]
+
+
+# %%
 def get_raw_data(
     sheet_id: str,
     sub_sheet: int | str | None = None,
@@ -35,15 +55,12 @@ def get_raw_data(
         )
         if sub_sheet:
             sheet_url += f"&gid={sub_sheet}"
-        csv_sheet = pd.read_csv(sheet_url)
+        csv_sheet = read_url(sheet_url, sub_sheet, mode)
 
         header = csv_sheet.iloc[0]
         raw_data = csv_sheet[2:]
     else:
-        sheet_url = (
-            f"https://docs.google.com/spreadsheets/d/e/2PACX-{sheet_id}/pubhtml#"
-        )
-        html_sheet = pd.read_html(sheet_url)[sub_sheet or 0].iloc[:, 1:]
+        html_sheet = read_url(sheet_id, sub_sheet, mode).iloc[:, 1:]
         # drop one of the extra "Run No." Columns
         html_sheet.drop(html_sheet.columns[1], axis=1, inplace=True)
         header = html_sheet.iloc[1]
@@ -52,12 +69,6 @@ def get_raw_data(
     raw_data.columns = header
     return raw_data
 
-
-# %%
-# NOTE: this doesn't work because of the merged cell I think
-csv_sheet = get_raw_data(
-    "1hycNi55OZfTon1S__Dd-E2a99uT6Y9OT0fFnl_gIbr0", "286323692", mode="CSV"
-)
 
 # %%
 html_sheet = get_raw_data(
