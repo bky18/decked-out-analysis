@@ -79,10 +79,16 @@ html_sheet = get_raw_data(
 
 
 # %%
+def phase_to_int(_s: str | None):
+    if _s is None:
+        return None
+    return int(_s.split()[1])
+
+
 def parse_deck_data(data_frame: pd.DataFrame) -> pd.DataFrame:
     # read raw data into the data that we want
     # ignore all the notes and other random info at the end of the table
-    data_frame = data_frame.iloc[:, :24]
+    data_frame = data_frame.iloc[:, :-11]
     name_map = {
         "run number": "Run No.",
         "hermit": "Hermit",
@@ -96,11 +102,6 @@ def parse_deck_data(data_frame: pd.DataFrame) -> pd.DataFrame:
         "phase": "Phase",
     }
     names, cols = zip(*name_map.items())
-
-    def phase_to_int(_s: str | None):
-        if _s is None:
-            return None
-        return int(_s.split()[1])
 
     ## extract the data we want
     # drop the first 3 rows, only copy get the columns we want
