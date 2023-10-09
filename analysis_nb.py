@@ -2,7 +2,7 @@
 # %matplotlib widget
 # NOTE: try `%matplotlib inline`` if this gives you problems
 
-import functools as ft
+
 from collections import defaultdict
 from collections.abc import Sequence
 from typing import Literal
@@ -13,6 +13,9 @@ import pandas as pd
 from matplotlib import pyplot as plt
 from matplotlib.axes import Axes
 from matplotlib.backend_bases import Event
+from matplotlib.figure import Figure
+from matplotlib.lines import Line2D
+from matplotlib.text import Annotation
 
 import data
 import deck
@@ -246,75 +249,133 @@ COLOR_MAP = {
     "ZombieCleo": "#008b8b",
 }
 
-
 # %%
-def plot(deck_stats: pd.DataFrame):
-    # replace the dashes with NaN, so that the data will be numerical
-    # drop the first row which is the "current stats" row
-    stripped_stats = deck_stats.iloc[1:, :].replace("—", np.NaN)
-    # Using Int8 means max of 255 runs
-    # stripped_stats.index = stripped_stats.index.astype(pd.Int8Dtype())
 
-    for col in stripped_stats:
-        stripped_stats[col] = pd.to_numeric(stripped_stats[col])
-
-    # return stripped_stats
-
-    # create plot, add lines with seaborn
-    ax = stripped_stats.plot(figsize=(8, 4.5))
-    ax.set_facecolor("#1b2032")
-
-    for line in ax.lines:
-        # get coordinates where each line ends
-        is_finite = False
-        for x, y in zip(reversed(line.get_xdata()), reversed(line.get_ydata())):
-            if np.isfinite(x) and np.isfinite(y):
-                break
-        # y = line.get_ydata()[-1]
-        # x = line.get_xdata()[-1]
-        player_label = line.get_label()
-        line.set_color(COLOR_MAP[player_label])
-        ax.annotate(
-            player_label,
-            xy=(x, y),
-            xytext=(0, 0),
-            color=line.get_color(),
-            xycoords=(ax.get_xaxis_transform(), ax.get_yaxis_transform()),
-            textcoords="offset points",
-        )
-    ax.legend().set_visible(False)
-
-    return ax
+ANNOTATIONS: dict[Line2D, Annotation] = {}
 
 
-# %%
-def on_hover(event: Event, plot: Axes):
-    for line in plot.lines:
-        line_is_hovered, _ = line.contains(event)
-        if line_is_hovered:
-            line.set_zorder(1)
-            line.set_linewidth(2)
-        else:
-            line.set_zorder(0)
-            line.set_linewidth(1)
+def add_annotation(ax, line):
+    # get coordinates where each line ends
+    for x, y in zip(reversed(line.get_xdata()), reversed(line.get_ydata())):
+        if np.isfinite(x) and np.isfinite(y):
+            break
+
+    player_label = line.get_label()
+    line.set_color(COLOR_MAP[player_label])
+    ANNOTATIONS[line] = ax.annotate(
+        player_label,
+        xy=(x, y),
+        xytext=(0, 0),
+        color=line.get_color(),
+        xycoords=(ax.get_xaxis_transform(), ax.get_yaxis_transform()),
+        textcoords="offset points",
+    )
+
+
+def plot(
+    data_frames: list[pd.DataFrame], titles: list[str]
+) -> tuple[Figure, list[Axes]]:
+    fig, axes = plt.subplots(nrows=len(data_frames), ncols=1, figsize=(9, 16))
+    for df, ax, title in zip(data_frames, axes, titles):
+        assert isinstance(ax, Axes)
+
+        # replace the dashes with NaN, so that the data will be numerical
+        # drop the first row which is the "current stats" row
+        stripped_stats = df.iloc[1:, :].replace("—", np.NaN)
+        # Using Int8 means max of 255 runs
+        stripped_stats.index = stripped_stats.index.astype(pd.Int8Dtype())
+
+        for col in stripped_stats:
+            stripped_stats[col] = pd.to_numeric(stripped_stats[col])
+
+        # stripped_stats.plot(figsize=(8, 4.5), title=stripped_stats.style.caption, ax=ax)
+        stripped_stats.plot(ax=ax, legend=0)
+        ax.set_title(title)
+        ax.set_facecolor("#1b2032")
+
+        for line in ax.lines:
+            add_annotation(ax, line)
+
+    return fig, axes
 
 
 # %%
-plt.connect(
-    "motion_notify_event",
-    ft.partial(on_hover, plot=plot(calculate_deck_stats(parsed_html_sheet, "power"))),
+fig, sub_plots = plot(
+    [
+        calculate_deck_stats(parsed_html_sheet, "size"),
+        calculate_deck_stats(parsed_html_sheet, "power"),
+        calculate_deck_stats(parsed_html_sheet, "efficiency"),
+    ],
+    ["Deck Size", "Deck Power", "Deck Efficiency"],
 )
 
-# %%
-plt.connect(
-    "motion_notify_event",
-    ft.partial(on_hover, plot=plot(calculate_deck_stats(parsed_html_sheet, "size"))),
-)
+LABEL_MAP: defaultdict[str, list[Line2D]] = defaultdict(list)
+
+for cur_plot in sub_plots:
+    for line in cur_plot.lines:
+        LABEL_MAP[line.get_label()].append(line)
+
 
 # %%
-plt.connect(
-    "motion_notify_event",
-    ft.partial(
-        on_hover, plot=plot(calculate_deck_stats(parsed_html_sheet, "efficiency"))
-    ),
-)
+def on_hover(event: Event):
+    for cur_plot in sub_plots:
+        for line in cur_plot.lines:
+            if line.contains(event)[0]:
+                line.set_zorder(1)
+                line.set_linewidth(2)
+                ANNOTATIONS[line].set_zorder(1)
+                ANNOTATIONS[line].set_fontweight("bold")
+            else:
+                line.set_zorder(0)
+                ANNOTATIONS[line].set_zorder(0)
+                line.set_linewidth(1)
+                ANNOTATIONS[line].set_fontweight("normal")
+
+
+# %%
+
+
+def on_pick(event):
+    num_visible = 0
+    labels = set()
+    active_line_names = set()
+    toggle_lines = False
+
+    for plot in sub_plots:
+        for line in plot.lines:
+            label = line.get_label()
+            labels.add(label)
+            num_visible += line.get_visible()
+            if line.contains(event.mouseevent)[0]:
+                # only want to toggle visibility if clicking on a visible line
+                if line.get_visible():
+                    toggle_lines = True
+                    active_line_names.add(label)
+
+    if not toggle_lines:
+        return
+
+    # set visible if num active == num visible
+    # set invisible id num active < num visible
+    # set visible if num active >= num visible
+
+    # if there's only 1 line per plot, set the lines to all be visible, hidden otherwise
+    visibility = num_visible <= (len(active_line_names) * 3)
+    for name in labels - active_line_names:
+        for line in LABEL_MAP[name]:
+            # hide the line
+            line.set_visible(visibility)
+            # hide the annotations
+            ANNOTATIONS[line].set_visible(visibility)
+
+
+# %%
+for line in sub_plots:
+    line.set_picker(5)
+
+fig.canvas.mpl_connect("motion_notify_event", on_hover)
+fig.canvas.mpl_connect("pick_event", on_pick)
+
+plt.tight_layout()
+
+# %%
