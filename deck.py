@@ -158,8 +158,8 @@ class Deck:
             penalty = 7 * (10 - self.size)
             p -= penalty
 
-        # subtract 40 to normalize the base deck to be 0 power
-        return p - 40
+        # add 40 to normalize the base deck to be 0 power
+        return p + 40
 
     @property
     def size(self) -> int:
