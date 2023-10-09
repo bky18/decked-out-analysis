@@ -352,35 +352,45 @@ def on_hover(event: MouseEvent):
 # %%
 
 
-def on_pick(event):
-    num_visible = 0
-    labels = set()
-    active_line_names = set()
-    toggle_lines = False
+def set_visibility(event: MouseEvent, lines: list[str], visibility: bool):
+    for _, l, a in iter_lines(event):
+        if l.get_label() in lines:
+            l.set_visible(visibility)
+            a.set_visible(visibility)
 
+
+def on_pick(event: PickEvent):
+    lines_to_show = set()
+    lines_to_hide = set()
+    line_clicked = False
     for _, line, _ in iter_lines(event):
+        line_is_visible = line.get_visible()
         label = line.get_label()
-        labels.add(label)
-        num_visible += line.get_visible()
-        if line.contains(event.mouseevent)[0]:
-            # only want to toggle visibility if clicking on a visible line
-            if line.get_visible():
-                toggle_lines = True
-                active_line_names.add(label)
 
-    if not toggle_lines:
-        return
-
-    # if there's only 1 line per plot, set the lines to all be visible, hidden otherwise
-    visibility = num_visible <= (len(active_line_names) * 3)
-    for _, line, annotation in iter_lines(event):
-        # skip over active lines
-        if line.get_label() in active_line_names:
+        # skip if we already have the info
+        if label in lines_to_show:
             continue
 
-        # set the visibility
-        line.set_visible(visibility)
-        annotation.set_visible(visibility)
+        if event.mouseevent.button == MouseButton.RIGHT:
+            if line_is_visible and line.contains(event.mouseevent)[0]:
+                line_clicked = True
+                lines_to_hide.add(label)
+
+        elif event.mouseevent.button == MouseButton.LEFT:
+            if line_is_visible:
+                if line.contains(event.mouseevent)[0]:
+                    lines_to_show.add(label)
+                    line_clicked = True
+                elif line not in lines_to_show:
+                    lines_to_hide.add(label)
+            else:
+                lines_to_show.add(label)
+
+    lines_to_hide -= lines_to_show
+    if line_clicked and lines_to_hide:
+        set_visibility(event, lines_to_hide, False)
+    elif lines_to_show:
+        set_visibility(event, lines_to_show, True)
 
 
 # %%
