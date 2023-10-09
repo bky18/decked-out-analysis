@@ -14,7 +14,9 @@ import pandas as pd
 from matplotlib import pyplot as plt
 from matplotlib.axes import Axes
 from matplotlib.backend_bases import Event
+from matplotlib.backend_bases import MouseButton
 from matplotlib.backend_bases import MouseEvent
+from matplotlib.backend_bases import PickEvent
 from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 from matplotlib.text import Annotation
@@ -333,7 +335,7 @@ def iter_lines(e: MouseEvent) -> Iterator[tuple[Axes, Line2D, Annotation]]:
 
 
 # %%
-def on_hover(event: Event):
+def on_hover(event: MouseEvent):
     for _, line, annotation in iter_lines(event):
         if line.contains(event)[0]:
             line.set_zorder(1)
