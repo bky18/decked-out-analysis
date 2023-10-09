@@ -153,12 +153,13 @@ class Deck:
         # remaining cards played will be stumbles, which add 2 clank to the deck.
         # Sneak blocks 2 clank, which means that a stumble effectively negates the effect
         # of sneak. The power of sneak is 7, therefore we subtract 7 for each card under
-        # 10 that the deck is. We then add 40 to normalize the base deck to be 0 instead
-        # of a negative value.
+        # 10 that the deck is.
         if self.size < 10:
-            p -= 7 * (10 - self.size) - 40
+            penalty = 7 * (10 - self.size)
+            p -= penalty
 
-        return p
+        # subtract 40 to normalize the base deck to be 0 power
+        return p - 40
 
     @property
     def size(self) -> int:
