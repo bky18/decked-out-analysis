@@ -314,9 +314,9 @@ fig, sub_plots = plot(
         ),
     ],
     [
-        "Deck Size (w/o Ethereals)",
-        "Deck Power (w/o Ethereals)",
-        "Deck Efficiency (w/o Ethereals)",
+        "Deck Size",
+        "Deck Power",
+        "Deck Efficiency",
     ],
 )
 
