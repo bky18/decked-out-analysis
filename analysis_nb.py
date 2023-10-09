@@ -178,6 +178,7 @@ RunData = TypedDict(
 def calculate_deck_stats(
     run_data: RunData,
     attr: Literal["size", "power", "efficiency"] | None = None,
+    ignore_ethereal_cards: bool = False,
 ):
     max_run_num = max(run_data["hermit run number"])
 
@@ -196,6 +197,8 @@ def calculate_deck_stats(
         run_data["cards bought"],
     ):
         cur_deck: deck.Deck = player_current_deck[player] + eth_cards
+        if ignore_ethereal_cards:
+            cur_deck = cur_deck.strip_ethereal_cards()
         player_deck_data[player][run_num] = cur_deck
 
         # update the player's deck
