@@ -5,6 +5,7 @@
 
 from collections import defaultdict
 from collections.abc import Sequence
+from typing import Iterator
 from typing import Literal
 from typing import TypedDict
 
@@ -13,6 +14,7 @@ import pandas as pd
 from matplotlib import pyplot as plt
 from matplotlib.axes import Axes
 from matplotlib.backend_bases import Event
+from matplotlib.backend_bases import MouseEvent
 from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 from matplotlib.text import Annotation
@@ -139,13 +141,10 @@ def parse_deck_data(data_frame: pd.DataFrame) -> pd.DataFrame:
 
     # apply type conversions
     for col_name, converter in converters.items():
-        # print for debugging
-        # print(col_name, converter.__name__)
         data_frame[col_name] = data_frame[col_name].apply(converter)
 
     # apply dtypes
     data_frame = data_frame.astype(dtypes)
-    # data_frame.dropna(how="any", inplace=True)
 
     # set the index
     data_frame.set_index("run number", inplace=True)
@@ -254,10 +253,8 @@ COLOR_MAP = {
 
 # %%
 
-ANNOTATIONS: dict[Line2D, Annotation] = {}
 
-
-def add_annotation(ax, line):
+def add_annotation(ax: Axes, line: Line2D):
     # get coordinates where each line ends
     for x, y in zip(reversed(line.get_xdata()), reversed(line.get_ydata())):
         if np.isfinite(x) and np.isfinite(y):
@@ -265,7 +262,7 @@ def add_annotation(ax, line):
 
     player_label = line.get_label()
     line.set_color(COLOR_MAP[player_label])
-    ANNOTATIONS[line] = ax.annotate(
+    ax.annotate(
         player_label,
         xy=(x, y),
         xytext=(0, 0),
@@ -305,34 +302,49 @@ def plot(
 # %%
 fig, sub_plots = plot(
     [
-        calculate_deck_stats(parsed_html_sheet, "size"),
-        calculate_deck_stats(parsed_html_sheet, "power"),
-        calculate_deck_stats(parsed_html_sheet, "efficiency"),
+        calculate_deck_stats(
+            parsed_html_sheet,
+            "size",
+        ),
+        calculate_deck_stats(parsed_html_sheet, "power", ignore_ethereal_cards=True),
+        calculate_deck_stats(
+            parsed_html_sheet, "efficiency", ignore_ethereal_cards=True
+        ),
     ],
-    ["Deck Size", "Deck Power", "Deck Efficiency"],
+    [
+        "Deck Size (w/o Ethereals)",
+        "Deck Power (w/o Ethereals)",
+        "Deck Efficiency (w/o Ethereals)",
+    ],
 )
 
-LABEL_MAP: defaultdict[str, list[Line2D]] = defaultdict(list)
 
-for cur_plot in sub_plots:
-    for line in cur_plot.lines:
-        LABEL_MAP[line.get_label()].append(line)
+# %%
+def iter_lines(e: MouseEvent) -> Iterator[tuple[Axes, Line2D, Annotation]]:
+    """Helper function to iterate over all the axes, lines and annotations from a MouseEvent"""
+    for cur_plot in e.canvas.figure.axes:
+        annotations = {
+            a.get_text(): a
+            for a in cur_plot.get_children()
+            if isinstance(a, Annotation)
+        }
+        for line in cur_plot.lines:
+            yield cur_plot, line, annotations[line.get_label()]
 
 
 # %%
 def on_hover(event: Event):
-    for cur_plot in sub_plots:
-        for line in cur_plot.lines:
-            if line.contains(event)[0]:
-                line.set_zorder(1)
-                line.set_linewidth(2)
-                ANNOTATIONS[line].set_zorder(1)
-                ANNOTATIONS[line].set_fontweight("bold")
-            else:
-                line.set_zorder(0)
-                ANNOTATIONS[line].set_zorder(0)
-                line.set_linewidth(1)
-                ANNOTATIONS[line].set_fontweight("normal")
+    for _, line, annotation in iter_lines(event):
+        if line.contains(event)[0]:
+            line.set_zorder(1)
+            line.set_linewidth(2)
+            annotation.set_zorder(1)
+            annotation.set_fontweight("bold")
+        else:
+            line.set_zorder(0)
+            annotation.set_zorder(0)
+            line.set_linewidth(1)
+            annotation.set_fontweight("normal")
 
 
 # %%
@@ -344,32 +356,29 @@ def on_pick(event):
     active_line_names = set()
     toggle_lines = False
 
-    for plot in sub_plots:
-        for line in plot.lines:
-            label = line.get_label()
-            labels.add(label)
-            num_visible += line.get_visible()
-            if line.contains(event.mouseevent)[0]:
-                # only want to toggle visibility if clicking on a visible line
-                if line.get_visible():
-                    toggle_lines = True
-                    active_line_names.add(label)
+    for _, line, _ in iter_lines(event):
+        label = line.get_label()
+        labels.add(label)
+        num_visible += line.get_visible()
+        if line.contains(event.mouseevent)[0]:
+            # only want to toggle visibility if clicking on a visible line
+            if line.get_visible():
+                toggle_lines = True
+                active_line_names.add(label)
 
     if not toggle_lines:
         return
 
-    # set visible if num active == num visible
-    # set invisible id num active < num visible
-    # set visible if num active >= num visible
-
     # if there's only 1 line per plot, set the lines to all be visible, hidden otherwise
     visibility = num_visible <= (len(active_line_names) * 3)
-    for name in labels - active_line_names:
-        for line in LABEL_MAP[name]:
-            # hide the line
-            line.set_visible(visibility)
-            # hide the annotations
-            ANNOTATIONS[line].set_visible(visibility)
+    for _, line, annotation in iter_lines(event):
+        # skip over active lines
+        if line.get_label() in active_line_names:
+            continue
+
+        # set the visibility
+        line.set_visible(visibility)
+        annotation.set_visible(visibility)
 
 
 # %%
