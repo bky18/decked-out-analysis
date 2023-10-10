@@ -49,20 +49,14 @@ def read_url(
 
 
 # %%
-def get_raw_data(
+def get_tracked_out_data(
     sheet_id: str,
     sub_sheet: int | str | None = None,
     mode: Literal["HTML", "CSV"] = "HTML",
 ) -> str:
-    # load a google sheet from the url using pandas
-    # NOTE: parsing the csv gets NaN for the run numbers, possibly because that column is merged?
+    """Reads Tracked Out spread sheet"""
     if mode == "CSV":
-        sheet_url = (
-            f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
-        )
-        if sub_sheet:
-            sheet_url += f"&gid={sub_sheet}"
-        csv_sheet = read_url(sheet_url, sub_sheet, mode)
+        csv_sheet = read_url(sheet_id, sub_sheet, mode)
 
         header = csv_sheet.iloc[0]
         raw_data = csv_sheet[2:]
@@ -78,7 +72,7 @@ def get_raw_data(
 
 
 # %%
-html_sheet = get_raw_data(
+html_sheet = get_tracked_out_data(
     "1vQrXRcKhaXrVDsUs9rcnfCSTC3K-9Q_D8Cidl4IP4rUcPeiSSNxU2fv7eHce4F_EXHZM7RJCTcSbS_b",
     1,
     mode="HTML",
