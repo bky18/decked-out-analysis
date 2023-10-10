@@ -302,9 +302,13 @@ fig, sub_plots = plot(
             parsed_html_sheet,
             "size",
         ),
-        calculate_deck_stats(parsed_html_sheet, "power", ignore_ethereal_cards=True),
         calculate_deck_stats(
-            parsed_html_sheet, "efficiency", ignore_ethereal_cards=True
+            parsed_html_sheet,
+            "power",
+        ),
+        calculate_deck_stats(
+            parsed_html_sheet,
+            "efficiency",
         ),
     ],
     [
