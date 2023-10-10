@@ -72,6 +72,66 @@ def get_tracked_out_data(
 
 
 # %%
+def csv_url(sheet_id: str, sub_sheet: int | None = None):
+    sheet_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
+    if sub_sheet:
+        sheet_url += f"&gid={sub_sheet}"
+
+    return sheet_url
+
+
+def get_card_tracking_data():
+    """Read the Shadeline's Card Tracking sheet."""
+    # get the raw sheet
+    sheet_id = "14YoASmzAlYpnjPcoLe9rsc0SnieO_XsfWrRFrIcnGBo"
+    # FIXME: for now sheet 0 is a special case because it's formatted differently
+    # hopefuly this gets fixed
+    sheet_1 = pd.read_csv(csv_url(sheet_id, 0), skiprows=[0], skip_blank_lines=True)
+    sheet_1.insert(0, "", None)
+    sheets = [sheet_1]
+    # print(len(sheet_1.columns))
+
+    # sheet_gids = [1470983131, 87401147, 1642273110]
+    for gid in [1470983131, 87401147, 1642273110]:
+        cur_sheet = pd.read_csv(
+            csv_url(sheet_id, gid), skiprows=[0], skip_blank_lines=True, header=None
+        )
+        cur_sheet.columns = sheet_1.columns
+        sheets.append(cur_sheet)
+    # sheets = [sheet_1, *(pd.read_csv(csv_url(sheet_id, gid), skiprows=[0], skip_blank_lines=True, header=None) for gid in sheet_gids)]
+
+    # add phase number column to the sheets
+    for i, sheet in enumerate(sheets):
+        sheet.insert(0, "phase", i + 1)
+    raw_sheet = pd.concat(sheets, axis=0)
+
+    # format the table
+    raw_sheet = raw_sheet.iloc[:, :7]
+    raw_sheet.columns = [
+        "phase",
+        "phase run number",
+        "run number",
+        "hermit",
+        "deck size",
+        "purchases",
+        "deck",
+    ]
+
+    # clean the data
+    raw_sheet = raw_sheet.dropna(subset=["hermit", "deck"])
+
+    # format the data
+    # # TODO: apply dtypes
+    # # TODO: implement parsing of deck from string
+    # # TODO: strip "*" from run numbers for refunded runs
+    return raw_sheet
+
+    # pd.concat([pd.read_csv(url)])
+
+
+h = get_card_tracking_data()
+
+# %%
 html_sheet = get_tracked_out_data(
     "1vQrXRcKhaXrVDsUs9rcnfCSTC3K-9Q_D8Cidl4IP4rUcPeiSSNxU2fv7eHce4F_EXHZM7RJCTcSbS_b",
     1,
