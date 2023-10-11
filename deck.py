@@ -1,9 +1,11 @@
+import re
 from collections import defaultdict
 from dataclasses import InitVar
 from dataclasses import dataclass
 from dataclasses import field
 from enum import IntEnum
 from typing import ClassVar
+from typing import Self
 
 
 class CardLevel(IntEnum):
@@ -22,7 +24,9 @@ EMBER_PRICE_POWER_FACTOR = 1
 
 @dataclass
 class Card:
+    # maps a short name to a card instance
     card_lookup: ClassVar[dict[str, "Card"]] = {}
+    # maps all the possible names of a card to a short name
     name_map: ClassVar[dict[str, str]] = {"LOOT & SCOOT": "LAS", "LOOT N' SCOOT": "LAS"}
 
     name: str
@@ -131,19 +135,7 @@ class Deck:
     def __post_init__(self, source: dict[str, int] | str | None):
         if isinstance(source, str):
             # parse from string
-            card_info = source.split(",")
-            source = {}
-
-            for ci in card_info:
-                # hacky way of making count default to 1 if the string can't be split
-                ci = ci.strip().replace("x", "")
-                short_name = ci[:3]
-                count = int(ci[3:] or 1)
-
-                if (not self.allow_negative) and count < 0:
-                    raise ValueError(f"{short_name}: Negative card counts not allowed")
-                source[short_name] = count
-
+            return self.from_str(source)
         # by default, the count of a card is 0
         self.cards = defaultdict(lambda: 0, source or {})
 
@@ -169,6 +161,51 @@ class Deck:
 
         # add 40 to normalize the base deck to be 0 power
         return p + 40
+
+    @classmethod
+    def from_str(cls, s: str) -> Self:
+        """
+        Parse a string to construct a Deck.
+
+        Supports 3 different patterns:
+        - Runs tab format: <short name>[x<count>]
+        - Cards Acquired tab format: <short name>[(+-)<count>]
+        - Card Stats sheet: [<count> ]<name>
+
+        Parameters
+        ----------
+        s : str
+            _description_
+
+        Returns
+        -------
+        Deck
+            _description_
+        """
+        runs_pattern = re.compile(r"(?P<name>[A-Z\d]{3})(?:x(?P<count>\d+))?")
+        cards_acquired_pattern = re.compile(r"(?P<name>[A-Z\d]{3})(?P<count>[+-]\d+)")
+        do_card_stats_pattern = re.compile(r"(?:(\d*) )?([ \w']+)")
+
+        for pattern in (runs_pattern, cards_acquired_pattern, do_card_stats_pattern):
+            deck: dict[str, int] | None = {}
+            for token in re.split(r",\w*", s):
+                m = re.match(pattern, token)
+
+                # all tokens should match on the same pattern
+                if not m:
+                    deck = None
+                    break
+
+                card_str = m["name"]
+                s_name = Card.name_map[card_str]
+                count = int(m["count"]) or 1
+                deck[s_name] = count
+
+            # go to next pattern if did not match
+            if deck is not None:
+                return cls(deck)
+
+        raise ValueError(f'Count not create a deck from "{s}"')
 
     @property
     def size(self) -> int:
