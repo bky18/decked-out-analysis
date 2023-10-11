@@ -139,29 +139,6 @@ class Deck:
         # by default, the count of a card is 0
         self.cards = defaultdict(lambda: 0, source or {})
 
-    @property
-    def power(self) -> int:
-        p = sum(
-            Card.card_lookup[s_name].power * count
-            for s_name, count in self.cards.items()
-        )
-
-        # apply penalty for small decks
-        # I estimate that the minimum successful run is about 5 minutes,
-        # and that cards are going to played every 30 seconds.
-        # This means that at a minimum, we can expect 10 cards to be played over the
-        # course of a successful run. Any deck less than 10 cards, means that the
-        # remaining cards played will be stumbles, which add 2 clank to the deck.
-        # Sneak blocks 2 clank, which means that a stumble effectively negates the effect
-        # of sneak. The power of sneak is 7, therefore we subtract 7 for each card under
-        # 10 that the deck is.
-        if self.size < 10:
-            penalty = 7 * (10 - self.size)
-            p -= penalty
-
-        # add 40 to normalize the base deck to be 0 power
-        return p + 40
-
     @classmethod
     def from_str(cls, s: str) -> Self:
         """
@@ -208,15 +185,42 @@ class Deck:
         raise ValueError(f'Count not create a deck from "{s}"')
 
     @property
+    def power(self) -> int:
+        """The cumulative power of all the cards in a deck."""
+        p = sum(
+            Card.card_lookup[s_name].power * count
+            for s_name, count in self.cards.items()
+        )
+
+        # apply penalty for small decks
+        # I estimate that the minimum successful run is about 5 minutes,
+        # and that cards are going to played every 30 seconds.
+        # This means that at a minimum, we can expect 10 cards to be played over the
+        # course of a successful run. Any deck less than 10 cards, means that the
+        # remaining cards played will be stumbles, which add 2 clank to the deck.
+        # Sneak blocks 2 clank, which means that a stumble effectively negates the effect
+        # of sneak. The power of sneak is 7, therefore we subtract 7 for each card under
+        # 10 that the deck is.
+        if self.size < 10:
+            penalty = 7 * (10 - self.size)
+            p -= penalty
+
+        # add 40 to normalize the base deck to be 0 power
+        return p + 40
+
+    @property
     def size(self) -> int:
+        """The total number of cards in a deck."""
         return sum(c for c in self.cards.values())
 
     @property
     def efficiency(self) -> float:
+        """The ratio of power to deck size."""
         return round(self.power / self.size, 2)
 
     @property
     def is_valid(self) -> bool:
+        """Checks if each card is under the allowed amount."""
         for s_name, count in self.cards.items():
             cur_limit = Card.card_lookup[s_name].limit
             if cur_limit is not None and count > cur_limit:
@@ -253,6 +257,7 @@ class Deck:
         # return str(dict(self.cards))
 
     def strip_ethereal_cards(self) -> "Deck":
+        """Return a new Deck with all the ethereal cards removed."""
         # add all cards that aren't ethereal
         stripped_cards = {
             s_name: count
