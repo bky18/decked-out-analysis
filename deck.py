@@ -3,6 +3,7 @@ from dataclasses import InitVar
 from dataclasses import dataclass
 from dataclasses import field
 from enum import IntEnum
+from typing import ClassVar
 
 
 class CardLevel(IntEnum):
@@ -13,7 +14,6 @@ class CardLevel(IntEnum):
     ETHEREAL = 5
 
 
-CARDS: dict[str, "Card"] = {}
 # ETHEREAL_CARDS: dict[str, "EtherealCard"] = {}
 
 CROWN_PRICE_POWER_FACTOR = 5
@@ -22,6 +22,9 @@ EMBER_PRICE_POWER_FACTOR = 1
 
 @dataclass
 class Card:
+    card_lookup: ClassVar[dict[str, "Card"]] = {}
+    name_map: ClassVar[dict[str, str]] = {"LOOT & SCOOT": "LAS", "LOOT N' SCOOT": "LAS"}
+
     name: str
     level: CardLevel
     price: int | None = None
@@ -66,11 +69,16 @@ class Card:
             raise ValueError("Card's short name must be exactly 3 characters")
 
         # register the card by it's short name, short names must be unique
-        if self.short_name in CARDS:
-            raise ValueError(
-                f"{CARDS[self.short_name].name} already has short name {self.short_name}"
-            )
-        CARDS[self.short_name] = self
+        if self.short_name in Card.card_lookup:
+            c = Card.card_lookup[self.short_name]
+            raise ValueError(f"{c.name} already has short name {self.short_name}")
+        Card.card_lookup[self.short_name] = self
+
+        # update the name map
+        name = self.name.upper()
+        if name in Card.name_map:
+            raise ValueError(f"{name} is already mapped to {Card.name_map[name]}")
+        Card.name_map[name] = self.short_name
 
 
 @dataclass
@@ -78,9 +86,6 @@ class EtherealCard(Card):
     level: CardLevel = CardLevel.ETHEREAL
     price: int | None = 3
     crowns_purchase: bool = True
-
-    def __post_init__(self):
-        super().__post_init__()
 
 
 @dataclass
@@ -143,7 +148,10 @@ class Deck:
 
     @property
     def power(self) -> int:
-        p = sum(CARDS[s_name].power * count for s_name, count in self.cards.items())
+        p = sum(
+            Card.card_lookup[s_name].power * count
+            for s_name, count in self.cards.items()
+        )
 
         # apply penalty for small decks
         # I estimate that the minimum successful run is about 5 minutes,
@@ -172,7 +180,7 @@ class Deck:
     @property
     def is_valid(self) -> bool:
         for s_name, count in self.cards.items():
-            cur_limit = CARDS[s_name].limit
+            cur_limit = Card.card_lookup[s_name].limit
             if cur_limit is not None and count > cur_limit:
                 return False
 
@@ -211,7 +219,7 @@ class Deck:
         stripped_cards = {
             s_name: count
             for s_name, count in self.cards.items()
-            if not isinstance(CARDS[s_name], EtherealCard)
+            if not isinstance(Card.card_lookup[s_name], EtherealCard)
         }
 
         return Deck(stripped_cards)
@@ -225,10 +233,10 @@ Card("Treasure Hunter", CardLevel.COMMON, 9, limit=5)
 Card("Ember Seeker", CardLevel.COMMON, 10, limit=5)
 moc_power = (
     6
-    + CARDS["SNE"].power
-    + CARDS["STA"].power
-    + CARDS["TRH"].power
-    + CARDS["EMS"].power
+    + Card.card_lookup["SNE"].power
+    + Card.card_lookup["STA"].power
+    + Card.card_lookup["TRH"].power
+    + Card.card_lookup["EMS"].power
 )
 # power is 40
 EtherealCard("Moment of Clarity", CardLevel.COMMON, 6, limit=None, power=moc_power)
@@ -271,8 +279,8 @@ LegendaryCard("Cash Cow")
 LegendaryCard("Boots of Swiftness", permanent=True)
 
 # ethereal cards
-p2w_power = (CARDS["EMS"].power * 5) + 8  # power is 58
-taa_power = CARDS["EVA"].power + CARDS["TRH"].power + 2
+p2w_power = (Card.card_lookup["EMS"].power * 5) + 8  # power is 58
+taa_power = Card.card_lookup["EVA"].power + Card.card_lookup["TRH"].power + 2
 EtherealCard("Pay to Win", power=p2w_power, short_name="P2W")
 EtherealCard("Tactical Approach", limit=None, power=taa_power, permanent=True)
 EtherealCard("Porkchop Power", limit=None, permanent=True)
