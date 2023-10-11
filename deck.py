@@ -79,6 +79,7 @@ class Card:
         if name in Card.name_map:
             raise ValueError(f"{name} is already mapped to {Card.name_map[name]}")
         Card.name_map[name] = self.short_name
+        Card.name_map[self.short_name] = self.short_name
 
 
 @dataclass
