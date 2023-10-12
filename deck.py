@@ -176,9 +176,9 @@ class Deck:
                     deck = None
                     break
 
-                card_str = m["name"]
+                card_str = m["name"].upper()
                 # ignore victory tomes
-                if card_str.upper() in ("VICTORY TOME", "VT"):
+                if card_str in ("VICTORY TOME", "VT"):
                     continue
                 s_name = Card.name_map[card_str]
                 count = int(m["count"]) or 1
