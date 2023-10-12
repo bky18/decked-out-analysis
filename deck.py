@@ -160,9 +160,11 @@ class Deck:
         Deck
             _description_
         """
-        runs_pattern = re.compile(r"(?P<name>[A-Z\d]{3})(?:x(?P<count>\d+))?")
-        cards_acquired_pattern = re.compile(r"(?P<name>[A-Z\d]{3})(?P<count>[+-]\d+)")
-        do_card_stats_pattern = re.compile(r"(?:(\d*) )?([ \w']+)")
+        runs_pattern = re.compile(r"(?P<name>[A-Z\d]{3})(?:x(?P<count>\d+))?$")
+        cards_acquired_pattern = re.compile(r"(?P<name>[A-Z\d]{3})(?P<count>[+-]\d+)$")
+        do_card_stats_pattern = re.compile(
+            r"(?:(?P<count>\d*) )?(?P<name>[ A-Za-z']{4,})$"
+        )
 
         for pattern in (runs_pattern, cards_acquired_pattern, do_card_stats_pattern):
             deck: dict[str, int] | None = {}
