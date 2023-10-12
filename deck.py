@@ -168,11 +168,11 @@ class Deck:
 
         for pattern in (runs_pattern, cards_acquired_pattern, do_card_stats_pattern):
             deck: dict[str, int] | None = {}
-            for token in re.split(r",\w*", s):
+            for token in re.split(r",\s*", s):
                 m = re.match(pattern, token)
 
                 # all tokens should match on the same pattern
-                if not m:
+                if m is None:
                     deck = None
                     break
 
@@ -264,7 +264,10 @@ class Deck:
         return self
 
     def __str__(self) -> str:
-        card_str = ",".join(f"{s_name}x{count}" for s_name, count in self.cards.items())
+        card_str = ",".join(
+            f"{s_name}{'-' if count < 0 else '+'}{count}"
+            for s_name, count in self.cards.items()
+        )
         return card_str
         # return str(dict(self.cards))
 
