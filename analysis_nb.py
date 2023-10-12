@@ -8,6 +8,8 @@ from collections.abc import Sequence
 from typing import Iterator
 from typing import Literal
 from typing import TypedDict
+from typing import Any
+from typing import Callable
 
 import numpy as np
 import pandas as pd
@@ -33,7 +35,7 @@ def read_url(
     sheet_id: str,
     sub_sheet: int | str | None = None,
     mode: Literal["HTML", "CSV"] = "HTML",
-):
+)-> pd.DataFrame    :
     if mode == "CSV":
         sheet_url = (
             f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
@@ -53,7 +55,7 @@ def get_tracked_out_data(
     sheet_id: str,
     sub_sheet: int | str | None = None,
     mode: Literal["HTML", "CSV"] = "HTML",
-) -> str:
+) -> pd.DataFrame:
     """Reads Tracked Out spread sheet"""
     if mode == "CSV":
         csv_sheet = read_url(sheet_id, sub_sheet, mode)
@@ -72,6 +74,19 @@ def get_tracked_out_data(
 
 
 # %%
+def format_data(data: pd.DataFrame, converters: dict[str, Callable] | None = None, dtypes: dict[str, Any] | None = None) -> pd.DataFrame:
+    if converters:
+        for col, conv in converters.items():
+            data[col] = data[col].apply(conv)
+
+    if dtypes:
+        for c, d in dtypes.items():
+            data=data.astype({c:d})
+
+    return data
+
+
+# %%
 def csv_url(sheet_id: str, sub_sheet: int | None = None):
     sheet_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
     if sub_sheet:
@@ -84,21 +99,13 @@ def get_card_tracking_data():
     """Read the Shadeline's Card Tracking sheet."""
     # get the raw sheet
     sheet_id = "14YoASmzAlYpnjPcoLe9rsc0SnieO_XsfWrRFrIcnGBo"
-    # FIXME: for now sheet 0 is a special case because it's formatted differently
-    # hopefuly this gets fixed
-    sheet_1 = pd.read_csv(csv_url(sheet_id, 0), skiprows=[0], skip_blank_lines=True)
-    sheet_1.insert(0, "", None)
-    sheets = [sheet_1]
-    # print(len(sheet_1.columns))
+    sheets = []
 
-    # sheet_gids = [1470983131, 87401147, 1642273110]
-    for gid in [1470983131, 87401147, 1642273110]:
+    for gid in [0, 1470983131, 87401147, 1642273110]:
         cur_sheet = pd.read_csv(
             csv_url(sheet_id, gid), skiprows=[0], skip_blank_lines=True, header=None
         )
-        cur_sheet.columns = sheet_1.columns
         sheets.append(cur_sheet)
-    # sheets = [sheet_1, *(pd.read_csv(csv_url(sheet_id, gid), skiprows=[0], skip_blank_lines=True, header=None) for gid in sheet_gids)]
 
     # add phase number column to the sheets
     for i, sheet in enumerate(sheets):
@@ -118,25 +125,37 @@ def get_card_tracking_data():
     ]
 
     # clean the data
-    raw_sheet = raw_sheet.dropna(subset=["hermit", "deck"])
+    raw_sheet = raw_sheet.dropna(subset=["hermit", "deck", "deck size"])
+    raw_sheet["purchases"].replace(
+        ["0", "??", np.nan], None, inplace=True
+    )
+
+    # FIXME: manual adjustments update after the data gets cleaned up
+    raw_sheet["deck size"] = raw_sheet["deck size"].replace("10 or 11", "10")
+    
 
     # format the data
-    # # TODO: apply dtypes
-    # # TODO: implement parsing of deck from string
-    # # TODO: strip "*" from run numbers for refunded runs
-    return raw_sheet
+    converters = {
+        "purchases": deck.Deck.from_str,
+        "deck": deck.Deck.from_str,
+    }
+    dtypes = {
+        "phase": "u1",
+        "phase run number": "u1",
+        "run number": "u1",
+        "hermit": pd.CategoricalDtype(),
+        "deck size": "u1",
+    }
+    # FIXME: figure out why getting error converting "deck size" col to in
+    formatted_data = format_data(raw_sheet, converters, dtypes)
 
-    # pd.concat([pd.read_csv(url)])
+    return formatted_data
 
 
-h = get_card_tracking_data()
+card_tracking_data = get_card_tracking_data()
 
 # %%
-html_sheet = get_tracked_out_data(
-    "1vQrXRcKhaXrVDsUs9rcnfCSTC3K-9Q_D8Cidl4IP4rUcPeiSSNxU2fv7eHce4F_EXHZM7RJCTcSbS_b",
-    1,
-    mode="HTML",
-)
+card_tracking_sheet = get_card_tracking_data()
 
 
 # %%
@@ -176,16 +195,20 @@ def parse_deck_data(data_frame: pd.DataFrame) -> pd.DataFrame:
 
     data_frame.replace({np.nan: None}, inplace=True)
 
+    # FIXME: manual adjustments
+    data_frame.replace("4 MOC", "MOCx4", inplace=True)
+
+
     # convert using data types
     converters = {
         "run number": int,
         "run reference": str,
         "hermit run number": int,
-        "ethereal cards": deck.Deck,
+        "ethereal cards": deck.Deck.from_str,
         # "difficulty": lambda x: print(f"difficulty str {x}") or data.Difficulty.from_str(x),
         "level": data.DungeonLevel.from_str,
         # "result": data.Result.from_str,
-        "cards bought": deck.Deck,
+        "cards bought": deck.Deck.from_str,
         "phase": phase_to_int,
     }
     dtypes = {
@@ -209,7 +232,11 @@ def parse_deck_data(data_frame: pd.DataFrame) -> pd.DataFrame:
 
 
 # %%
-parsed_html_sheet = parse_deck_data(html_sheet)
+parsed_html_sheet = parse_deck_data(get_tracked_out_data(
+    "1vQrXRcKhaXrVDsUs9rcnfCSTC3K-9Q_D8Cidl4IP4rUcPeiSSNxU2fv7eHce4F_EXHZM7RJCTcSbS_b",
+    1,
+    mode="HTML",
+))
 
 # %%
 RunData = TypedDict(
@@ -243,7 +270,7 @@ def calculate_deck_stats(
     )
     # tracks the state of the player's deck after the most recent run was completed
     player_current_deck: defaultdict[str, deck.Deck] = defaultdict(
-        lambda: deck.Deck("SNE,TRH")
+        lambda: deck.Deck.from_str("SNE,TRH")
     )
     for player, run_num, eth_cards, bought_cards in zip(
         run_data["hermit"],
@@ -307,9 +334,8 @@ COLOR_MAP = {
     "ZombieCleo": "#008b8b",
 }
 
+
 # %%
-
-
 def add_annotation(ax: Axes, line: Line2D):
     # get coordinates where each line ends
     for x, y in zip(reversed(line.get_xdata()), reversed(line.get_ydata())):
@@ -317,6 +343,7 @@ def add_annotation(ax: Axes, line: Line2D):
             break
 
     player_label = line.get_label()
+    assert isinstance(player_label, str)
     line.set_color(COLOR_MAP[player_label])
     ax.annotate(
         player_label,
@@ -350,26 +377,25 @@ def plot(
         ax.set_facecolor("#1b2032")
 
         for line in ax.lines:
+            assert isinstance(line, Line2D)
             add_annotation(ax, line)
 
     return fig, axes
 
 
 # %%
+# TODO: fill in gaps where we don't have deck data with NAN
+def fill_gaps():
+    ...
+# TODO: extrapolate deck value when values are missing
+
+
+# %%
 fig, sub_plots = plot(
     [
-        calculate_deck_stats(
-            parsed_html_sheet,
-            "size",
-        ),
-        calculate_deck_stats(
-            parsed_html_sheet,
-            "power",
-        ),
-        calculate_deck_stats(
-            parsed_html_sheet,
-            "efficiency",
-        ),
+        calculate_deck_stats(parsed_html_sheet,"size"),
+        calculate_deck_stats(parsed_html_sheet,"power"),
+        calculate_deck_stats(parsed_html_sheet,"efficiency"),
     ],
     [
         "Deck Size",
@@ -389,7 +415,10 @@ def iter_lines(e: MouseEvent) -> Iterator[tuple[Axes, Line2D, Annotation]]:
             if isinstance(a, Annotation)
         }
         for line in cur_plot.lines:
-            yield cur_plot, line, annotations[line.get_label()]
+            assert isinstance(line, Line2D)
+            label=line.get_label()
+            assert isinstance(label, str)
+            yield cur_plot, line, annotations[label]
 
 
 # %%
@@ -408,9 +437,7 @@ def on_hover(event: MouseEvent):
 
 
 # %%
-
-
-def set_visibility(event: MouseEvent, lines: list[str], visibility: bool):
+def set_visibility(event: MouseEvent, lines: set[str], visibility: bool):
     for _, l, a in iter_lines(event):
         if l.get_label() in lines:
             l.set_visible(visibility)
@@ -418,13 +445,13 @@ def set_visibility(event: MouseEvent, lines: list[str], visibility: bool):
 
 
 def on_pick(event: PickEvent):
-    lines_to_show = set()
-    lines_to_hide = set()
+    lines_to_show: set[str] = set()
+    lines_to_hide: set[str] = set()
     line_clicked = False
-    for _, line, _ in iter_lines(event):
+    for _, line, _ in iter_lines(event.mouseevent):
         line_is_visible = line.get_visible()
         label = line.get_label()
-
+        assert isinstance(label, str)
         # skip if we already have the info
         if label in lines_to_show:
             continue
@@ -446,9 +473,9 @@ def on_pick(event: PickEvent):
 
     lines_to_hide -= lines_to_show
     if line_clicked and lines_to_hide:
-        set_visibility(event, lines_to_hide, False)
+        set_visibility(event.mouseevent, lines_to_hide, False)
     elif lines_to_show:
-        set_visibility(event, lines_to_show, True)
+        set_visibility(event.mouseevent, lines_to_show, True)
 
 
 # %%
@@ -459,5 +486,3 @@ fig.canvas.mpl_connect("motion_notify_event", on_hover)
 fig.canvas.mpl_connect("pick_event", on_pick)
 
 plt.tight_layout()
-
-# %%
