@@ -178,7 +178,7 @@ class Deck:
 
                 card_str = m["name"].upper()
                 # ignore victory tomes
-                if card_str in ("VICTORY TOME", "VT"):
+                if any(t in card_str for t in ("VICTORY TOME", "VT")):
                     continue
                 s_name = Card.name_map[card_str]
 
