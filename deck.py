@@ -132,7 +132,9 @@ class Deck:
     cards: dict[str, int]
     allow_negative: bool
 
-    def __init__(self, source: dict[str, int] | None, allow_negative: bool = False):
+    def __init__(
+        self, source: dict[str, int] | None = None, allow_negative: bool = False
+    ):
         # by default, the count of a card is 0
         self.cards = defaultdict(lambda: 0, source or {})
 
@@ -161,6 +163,9 @@ class Deck:
         Deck
             _description_
         """
+        if not s:
+            return cls()
+
         runs_pattern = re.compile(r"(?P<name>[A-Z\d]{3})(?:x(?P<count>\d+))?$")
         cards_acquired_pattern = re.compile(r"(?P<name>[A-Z\d]{3})(?P<count>[+-]\d+)$")
         do_card_stats_pattern = re.compile(
