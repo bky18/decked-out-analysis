@@ -188,7 +188,7 @@ class Deck:
             if deck is not None:
                 return cls(deck)
 
-        raise ValueError(f'Count not create a deck from "{s}"')
+        raise ValueError(f'Could not create a deck from "{s}"')
 
     @property
     def power(self) -> int:
