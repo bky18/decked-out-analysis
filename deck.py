@@ -181,7 +181,13 @@ class Deck:
                 if card_str in ("VICTORY TOME", "VT"):
                     continue
                 s_name = Card.name_map[card_str]
-                count = int(m["count"]) or 1
+
+                count = m["count"]
+                if count is None:
+                    count = 1
+                else:
+                    count = str(count)
+
                 deck[s_name] = count
 
             # go to next pattern if did not match
