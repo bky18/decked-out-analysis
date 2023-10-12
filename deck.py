@@ -183,10 +183,10 @@ class Deck:
                 s_name = Card.name_map[card_str]
 
                 count = m["count"]
-                if count is None:
-                    count = 1
+                if count:
+                    count = int(count)
                 else:
-                    count = str(count)
+                    count = 1
 
                 deck[s_name] = count
 
