@@ -102,7 +102,7 @@ class LegendaryCard(Card):
     power: int = 999
 
 
-@dataclass
+@dataclass(init=False)
 class Deck:
     """
     Create a deck from a dict of cards, or a string
@@ -129,16 +129,17 @@ class Deck:
     Create a deck with 1 Treasure Hunter, and -1 Sneak
     """
 
-    source: InitVar[dict[str, int] | str | None]
-    cards: dict[str, int] = field(default_factory=dict, init=False)
-    allow_negative: bool = False
+    cards: dict[str, int]
+    allow_negative: bool
 
-    def __post_init__(self, source: dict[str, int] | str | None):
-        if isinstance(source, str):
-            # parse from string
-            return self.from_str(source)
+    def __init__(self, source: dict[str, int] | None, allow_negative: bool = False):
         # by default, the count of a card is 0
         self.cards = defaultdict(lambda: 0, source or {})
+
+        if not allow_negative:
+            for card, count in self.cards.items():
+                if count < 0:
+                    raise ValueError(f"{card} has a negative count {count}")
 
     @classmethod
     def from_str(cls, s: str) -> Self:
