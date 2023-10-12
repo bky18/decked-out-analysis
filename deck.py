@@ -1,3 +1,4 @@
+"""Module for handling cards and decks."""
 import re
 from collections import defaultdict
 from dataclasses import InitVar
@@ -174,6 +175,9 @@ class Deck:
                     break
 
                 card_str = m["name"]
+                # ignore victory tomes
+                if card_str.upper() in ("VICTORY TOME", "VT"):
+                    continue
                 s_name = Card.name_map[card_str]
                 count = int(m["count"]) or 1
                 deck[s_name] = count
