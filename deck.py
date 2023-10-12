@@ -271,8 +271,7 @@ class Deck:
 
     def __str__(self) -> str:
         card_str = ",".join(
-            f"{s_name}{'-' if count < 0 else '+'}{count}"
-            for s_name, count in self.cards.items()
+            f"{s_name}{count:+}" for s_name, count in self.cards.items()
         )
         return card_str
         # return str(dict(self.cards))
