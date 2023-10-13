@@ -269,7 +269,7 @@ def calculate_deck_stats(
     run_data: RunData,
     attr: Literal["size", "power", "efficiency"] | None = None,
     ignore_ethereal_cards: bool = False,
-    replace_nan: bool = False
+    replace_nan: bool = False,
 ):
     max_run_num = max(run_data["hermit run number"])
 
@@ -315,7 +315,7 @@ def calculate_deck_stats(
             results[player] = results[player].apply(
                 lambda cell: getattr(cell, attr) if cell else np.nan
             )
-            
+
     if replace_nan:
         results.replace(np.nan, "—", inplace=True)
 
@@ -355,27 +355,34 @@ COLOR_MAP = {
 # %%
 def add_annotation(ax: Axes, line: Line2D):
     # get coordinates where each line ends
+    x = -1
+    y = -1
     for x, y in zip(reversed(line.get_xdata()), reversed(line.get_ydata())):
         if np.isfinite(x) and np.isfinite(y):
             break
 
     player_label = line.get_label()
     assert isinstance(player_label, str)
+    *prefix, player_label = player_label.split("-")
     line.set_color(COLOR_MAP[player_label])
-    ax.annotate(
-        player_label,
-        xy=(x, y),
-        xytext=(0, 0),
-        color=line.get_color(),
-        xycoords=(ax.get_xaxis_transform(), ax.get_yaxis_transform()),
-        textcoords="offset points",
-    )
+
+    # don't annotate lines with a prefix
+    if not prefix:
+        ax.annotate(
+            player_label,
+            xy=(x, y),
+            xytext=(0, 0),
+            color=line.get_color(),
+            xycoords=(ax.get_xaxis_transform(), ax.get_yaxis_transform()),
+            textcoords="offset points",
+        )
 
 
 def plot(
     data_frames: list[pd.DataFrame], titles: list[str]
 ) -> tuple[Figure, list[Axes]]:
     fig, axes = plt.subplots(nrows=len(data_frames), ncols=1, figsize=(9, 16))
+    # create each figure
     for df, ax, title in zip(data_frames, axes, titles):
         assert isinstance(ax, Axes)
 
@@ -389,22 +396,54 @@ def plot(
             stripped_stats[col] = pd.to_numeric(stripped_stats[col])
 
         # stripped_stats.plot(figsize=(8, 4.5), title=stripped_stats.style.caption, ax=ax)
-        stripped_stats.plot(ax=ax, legend=0)
+
+        for col in stripped_stats:
+            player_series = stripped_stats[col]
+            # matplotlib automatically interpolates intermediate values if they're missing and not set to NAN
+            interpolated_values = player_series[np.isfinite(player_series)]
+
+            # Iterate over the missing values series, and remove all consecutive points
+            # so that the two plots don't overlap
+            indices_to_drop = set()
+            for idx_val in interpolated_values.index[1:-1]:
+                # only keep values if one of the adjacent values are missing
+                if (
+                    idx_val + 1 in interpolated_values
+                    and idx_val - 1 in interpolated_values
+                ):
+                    indices_to_drop.add(idx_val)
+
+            # handle the first and last indices as special cases
+            first_idx_val = interpolated_values.index[0]
+            if first_idx_val + 1 in interpolated_values:
+                indices_to_drop.add(first_idx_val)
+
+            last_idx_val = interpolated_values.index[0]
+            if last_idx_val - 1 in interpolated_values:
+                indices_to_drop.add(last_idx_val)
+
+            # replace the duplicate values with nan
+            for idx in indices_to_drop:
+                interpolated_values[idx] = np.nan
+
+            ax.plot(
+                interpolated_values.index,
+                interpolated_values,
+                label=f"interp-{col}",
+                ls="--",
+            )
+            ax.plot(player_series.index, player_series, label=col)
+
         ax.set_title(title)
         ax.set_facecolor("#1b2032")
 
         for line in ax.lines:
             assert isinstance(line, Line2D)
+            # skip over interpolated lines
             add_annotation(ax, line)
 
     return fig, axes
 
-
-# %%
-a = calculate_deck_stats(card_tracking_sheet, "size")
-
-# %%
-a
 
 # %%
 fig, sub_plots = plot(
@@ -422,41 +461,60 @@ fig, sub_plots = plot(
 
 
 # %%
-def iter_lines(e: MouseEvent) -> Iterator[tuple[Axes, Line2D, Annotation]]:
-    """Helper function to iterate over all the axes, lines and annotations from a MouseEvent"""
+def iter_lines(e: MouseEvent) -> Iterator[tuple[Axes, str, list[Line2D], Annotation]]:
+    """Helper function to iterate over all the axes, lables, lines and annotations from a MouseEvent"""
     for cur_plot in e.canvas.figure.axes:
         annotations = {
             a.get_text(): a
             for a in cur_plot.get_children()
             if isinstance(a, Annotation)
         }
+        # stores all the lines that should be associated with a single label
+        lines: defaultdict[str, list[Line2D]] = defaultdict(list)
         for line in cur_plot.lines:
             assert isinstance(line, Line2D)
+
             label = line.get_label()
             assert isinstance(label, str)
-            yield cur_plot, line, annotations[label]
+            *_, label = label.split("-")
+            lines[label].append(line)
+
+        for label, lines in lines.items():
+            yield cur_plot, label, lines, annotations[label]
 
 
 # %%
 def on_hover(event: MouseEvent):
-    for _, line, annotation in iter_lines(event):
-        if line.contains(event)[0]:
-            line.set_zorder(1)
-            line.set_linewidth(2)
+    def _bring_to_front(line):
+        # bring line to the front
+        line.set_zorder(1)
+        line.set_linewidth(2)
+
+    def _send_to_back(line):
+        line.set_zorder(0)
+        line.set_linewidth(1)
+
+    # if any line in the group are hovered, bring them all to the front
+    for _, _, lines, annotation in iter_lines(event):
+        if any(line.contains(event)[0] for line in lines):
+            handler = _bring_to_front
             annotation.set_zorder(1)
             annotation.set_fontweight("bold")
         else:
-            line.set_zorder(0)
+            handler = _send_to_back
             annotation.set_zorder(0)
-            line.set_linewidth(1)
             annotation.set_fontweight("normal")
+
+        for line in lines:
+            handler(line)
 
 
 # %%
 def set_visibility(event: MouseEvent, lines: set[str], visibility: bool):
-    for _, l, a in iter_lines(event):
-        if l.get_label() in lines:
-            l.set_visible(visibility)
+    for _, label, ls, a in iter_lines(event):
+        if label in lines:
+            for l in ls:
+                l.set_visible(visibility)
             a.set_visible(visibility)
 
 
@@ -464,25 +522,26 @@ def on_pick(event: PickEvent):
     lines_to_show: set[str] = set()
     lines_to_hide: set[str] = set()
     line_clicked = False
-    for _, line, _ in iter_lines(event.mouseevent):
-        line_is_visible = line.get_visible()
-        label = line.get_label()
+    for _, label, lines, _ in iter_lines(event.mouseevent):
+        line_is_visible = any(line.get_visible() for line in lines)
         assert isinstance(label, str)
         # skip if we already have the info
         if label in lines_to_show:
             continue
 
         if event.mouseevent.button == MouseButton.RIGHT:
-            if line_is_visible and line.contains(event.mouseevent)[0]:
+            if line_is_visible and any(
+                line.contains(event.mouseevent)[0] for line in lines
+            ):
                 line_clicked = True
                 lines_to_hide.add(label)
 
         elif event.mouseevent.button == MouseButton.LEFT:
             if line_is_visible:
-                if line.contains(event.mouseevent)[0]:
+                if any(line.contains(event.mouseevent)[0] for line in lines):
                     lines_to_show.add(label)
                     line_clicked = True
-                elif line not in lines_to_show:
+                elif any(line not in lines_to_show for line in lines):
                     lines_to_hide.add(label)
             else:
                 lines_to_show.add(label)
