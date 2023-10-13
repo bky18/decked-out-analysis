@@ -15,64 +15,70 @@ def dtype(__enum: Type[Enum], /):
     return __enum
 
 
-Hermit = pd.CategoricalDtype(
-    [
-        "BdoubleO100",
-        "Cubfan135",
-        "Docm77",
-        "Ethoslab",
-        "FalseSymmetry",
-        "GeminiTay",
-        "Grian",
-        "Hypnotizd",
-        "iJevin",
-        "impulseSV",
-        "iskall85",
-        "JoeHills",
-        "Keralis",
-        "MumboJumbo",
-        "Pearl",
-        "Rendog",
-        "Scar",
-        "Stress",
-        "TangoTek",
-        "VintageBeef",
-        "Welsknight",
-        "xBCrafted",
-        "Xisuma",
-        "Zedaph",
-        "ZombieCleo",
-    ]
-)
+NAMES = [
+    "Bdubs",
+    "Cub",
+    "Doc",
+    "Etho",
+    "False",
+    "Gem",
+    "Grian",
+    "Hypno",
+    "Jevin",
+    "Impulse",
+    "Iskall",
+    "Joe",
+    "Keralis",
+    "Mumbo",
+    "Pearl",
+    "Ren",
+    "Scar",
+    "Stress",
+    "Tango",
+    "Beef",
+    "Wels",
+    "xB",
+    "Xisuma",
+    "Zed",
+    "Cleo",
+]
+Hermit = pd.CategoricalDtype(NAMES)
 
 # maps hermit's nicknames to full names
-FULL_NAMES = {
-    "Bdubs": "BdoubleO100",
-    "Cub": "Cubfan135",
-    "Doc": "Docm77",
-    "Etho": "Ethoslab",
-    "False": "FalseSymmetry",
-    "Gem": "GeminiTay",
-    "Grian": "Grian",
-    "Hypno": "Hypnotizd",
-    "Jevin": "iJevin",
-    "Impulse": "impulseSV",
-    "Iskall": "iskall85",
-    "Joe": "JoeHills",
-    "Keralis": "Keralis",
-    "Mumbo": "MumboJumbo",
-    "Pearl": "Pearl",
-    "Ren": "Rendog",
-    "Scar": "Scar",
-    "Stress": "Stress",
-    "Tango": "TangoTek",
-    "Beef": "VintageBeef",
-    "Wels": "Welsknight",
-    "xB": "xBCrafted",
-    "X": "Xisuma",
-    "Zed": "Zedaph",
-    "Cleo": "ZombieCleo",
+_names = {
+    ("Bdubs", "BdoubleO100", "BdoubleO"),
+    ("Cub", "Cubfan135", "Cubfan"),
+    ("Doc", "Docm77"),
+    ("Etho", "Ethoslab"),
+    ("False", "FalseSymmetry"),
+    ("Gem", "GeminiTay"),
+    ("Grian", "Grian"),
+    ("Hypno", "Hypnotizd"),
+    ("Jevin", "iJevin", "Jev"),
+    ("Impulse", "impulseSV"),
+    ("Iskall", "iskall85"),
+    ("Joe", "JoeHills"),
+    ("Keralis", "Keralis"),
+    ("Mumbo", "MumboJumbo"),
+    ("Pearl", "PearlescentMoon"),
+    ("Ren", "Rendog"),
+    ("Scar", "GoodTimesWithScar", "GoodTimeWithScar"),
+    ("Stress", "Stressmonster", "Stressmonster101"),
+    ("Tango", "TangoTek", "Dungeon Master", "Dungeon Lackey", "DM", "DL"),
+    ("Beef", "VintageBeef"),
+    ("Wels", "Welsknight"),
+    ("xB", "xBCrafted"),
+    ("Xisuma", "Xisumavoid", "X"),
+    ("Zed", "Zedaph"),
+    ("Cleo", "ZombieCleo"),
 }
+
+# parse all the possible names
+NAME_LOOKUP: dict[str, str] = {}
+for aliases in _names:
+    name = aliases[0]
+    for alias in aliases:
+        NAME_LOOKUP[alias.upper()] = name
 
 
 @dtype

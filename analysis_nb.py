@@ -5,11 +5,11 @@
 
 from collections import defaultdict
 from collections.abc import Sequence
+from typing import Any
+from typing import Callable
 from typing import Iterator
 from typing import Literal
 from typing import TypedDict
-from typing import Any
-from typing import Callable
 
 import numpy as np
 import pandas as pd
@@ -35,7 +35,7 @@ def read_url(
     sheet_id: str,
     sub_sheet: int | str | None = None,
     mode: Literal["HTML", "CSV"] = "HTML",
-)-> pd.DataFrame    :
+) -> pd.DataFrame:
     if mode == "CSV":
         sheet_url = (
             f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
@@ -74,16 +74,26 @@ def get_tracked_out_data(
 
 
 # %%
-def format_data(data: pd.DataFrame, converters: dict[str, Callable] | None = None, dtypes: dict[str, Any] | None = None) -> pd.DataFrame:
+def format_data(
+    data: pd.DataFrame,
+    converters: dict[str, Callable] | None = None,
+    dtypes: dict[str, Any] | None = None,
+) -> pd.DataFrame:
     if converters:
         for col, conv in converters.items():
             data[col] = data[col].apply(conv)
 
     if dtypes:
         for c, d in dtypes.items():
-            data=data.astype({c:d})
+            data = data.astype({c: d})
 
     return data
+
+
+# %%
+def convert_names(name: str):
+    """Helper function to standardize all the possible names."""
+    return data.NAME_LOOKUP[name.strip().upper()]
 
 
 # %%
@@ -117,7 +127,7 @@ def get_card_tracking_data():
     raw_sheet.columns = [
         "phase",
         "phase run number",
-        "run number",
+        "hermit run number",
         "hermit",
         "deck size",
         "purchases",
@@ -126,24 +136,22 @@ def get_card_tracking_data():
 
     # clean the data
     raw_sheet = raw_sheet.dropna(subset=["hermit", "deck", "deck size"])
-    raw_sheet["purchases"].replace(
-        ["0", "??", np.nan], None, inplace=True
-    )
+    raw_sheet["purchases"].replace(["0", "??", np.nan], None, inplace=True)
 
     # FIXME: manual adjustments update after the data gets cleaned up
     raw_sheet["deck size"] = raw_sheet["deck size"].replace("10 or 11", "10")
-    
 
     # format the data
     converters = {
+        "hermit": convert_names,
         "purchases": deck.Deck.from_str,
         "deck": deck.Deck.from_str,
     }
     dtypes = {
         "phase": "u1",
         "phase run number": "u1",
-        "run number": "u1",
-        "hermit": pd.CategoricalDtype(),
+        "hermit run number": "u1",
+        "hermit": data.Hermit,
         "deck size": "u1",
     }
     # FIXME: figure out why getting error converting "deck size" col to in
@@ -151,8 +159,6 @@ def get_card_tracking_data():
 
     return formatted_data
 
-
-card_tracking_data = get_card_tracking_data()
 
 # %%
 card_tracking_sheet = get_card_tracking_data()
@@ -178,7 +184,7 @@ def parse_deck_data(data_frame: pd.DataFrame) -> pd.DataFrame:
         "difficulty": "Difficulty",
         "level": "Floor (Compass Goal)",
         "result": "Success/Fail",
-        "cards bought": "Cards Bought",
+        "purchases": "Cards Bought",
         "phase": "Phase",
     }
     names, cols = zip(*name_map.items())
@@ -198,17 +204,17 @@ def parse_deck_data(data_frame: pd.DataFrame) -> pd.DataFrame:
     # FIXME: manual adjustments
     data_frame.replace("4 MOC", "MOCx4", inplace=True)
 
-
     # convert using data types
     converters = {
         "run number": int,
+        "hermit": convert_names,
         "run reference": str,
         "hermit run number": int,
         "ethereal cards": deck.Deck.from_str,
         # "difficulty": lambda x: print(f"difficulty str {x}") or data.Difficulty.from_str(x),
         "level": data.DungeonLevel.from_str,
         # "result": data.Result.from_str,
-        "cards bought": deck.Deck.from_str,
+        "purchases": deck.Deck.from_str,
         "phase": phase_to_int,
     }
     dtypes = {
@@ -232,11 +238,13 @@ def parse_deck_data(data_frame: pd.DataFrame) -> pd.DataFrame:
 
 
 # %%
-parsed_html_sheet = parse_deck_data(get_tracked_out_data(
-    "1vQrXRcKhaXrVDsUs9rcnfCSTC3K-9Q_D8Cidl4IP4rUcPeiSSNxU2fv7eHce4F_EXHZM7RJCTcSbS_b",
-    1,
-    mode="HTML",
-))
+parsed_html_sheet = parse_deck_data(
+    get_tracked_out_data(
+        "1vQrXRcKhaXrVDsUs9rcnfCSTC3K-9Q_D8Cidl4IP4rUcPeiSSNxU2fv7eHce4F_EXHZM7RJCTcSbS_b",
+        1,
+        mode="HTML",
+    )
+)
 
 # %%
 RunData = TypedDict(
@@ -251,7 +259,7 @@ RunData = TypedDict(
         "difficulty": Sequence[data.Difficulty],
         "level": Sequence[data.DungeonLevel],
         "result": Sequence[data.Result],
-        "cards bought": Sequence[deck.Deck],
+        "purchases": Sequence[deck.Deck],
         "phase": Sequence[int],
     },
 )
@@ -261,6 +269,7 @@ def calculate_deck_stats(
     run_data: RunData,
     attr: Literal["size", "power", "efficiency"] | None = None,
     ignore_ethereal_cards: bool = False,
+    replace_nan: bool = False
 ):
     max_run_num = max(run_data["hermit run number"])
 
@@ -272,11 +281,16 @@ def calculate_deck_stats(
     player_current_deck: defaultdict[str, deck.Deck] = defaultdict(
         lambda: deck.Deck.from_str("SNE,TRH")
     )
+
+    # add column if not present
+    if "ethereal cards" not in run_data.columns:
+        run_data["ethereal cards"] = None
+
     for player, run_num, eth_cards, bought_cards in zip(
         run_data["hermit"],
         run_data["hermit run number"],
         run_data["ethereal cards"],
-        run_data["cards bought"],
+        run_data["purchases"],
     ):
         cur_deck: deck.Deck = player_current_deck[player] + eth_cards
         if ignore_ethereal_cards:
@@ -299,39 +313,42 @@ def calculate_deck_stats(
         # convert deck to get the queried attribute
         if attr:
             results[player] = results[player].apply(
-                lambda cell: getattr(cell, attr) if cell else "—"
+                lambda cell: getattr(cell, attr) if cell else np.nan
             )
+            
+    if replace_nan:
+        results.replace(np.nan, "—", inplace=True)
 
     return results
 
 
 # %%
 COLOR_MAP = {
-    "BdoubleO100": "#66822d",
-    "Cubfan135": "#3086c8",
-    "Docm77": "#228b22",
-    "Ethoslab": "#68fdf6",
-    "FalseSymmetry": "#ff69b4",
-    "GeminiTay": "#00ff7f",
+    "Bdubs": "#66822d",
+    "Cub": "#3086c8",
+    "Doc": "#228b22",
+    "Etho": "#68fdf6",
+    "False": "#ff69b4",
+    "Gem": "#00ff7f",
     "Grian": "#dc143c",
-    "Hypnotizd": "#000000",
-    "iJevin": "#469ec5",
-    "impulseSV": "#f1c936",
-    "iskall85": "#9acd32",
-    "JoeHills": "#7cfc00",
-    "Keralis": "#a9a9a9",
-    "MumboJumbo": "#ef6562",
+    "Hypno": "#000000",
+    "Jevin": "#469ec5",
+    "Impulse": "#f1c936",
+    "Iskall": "#9acd32",
+    "Joe": "#7cfc00",
+    "Keralis": "#ecfb01",
+    "Mumbo": "#ef6562",
     "Pearl": "#ff4500",
-    "Rendog": "#8b0024",
+    "Ren": "#8b0024",
     "Scar": "#fe8705",
     "Stress": "#ff00ff",
-    "TangoTek": "#00ffff",
-    "VintageBeef": "#562d19",
-    # "Welsknight": "",
-    "xBCrafted": "#008b8b",
+    "Tango": "#00ffff",
+    "Beef": "#562d19",
+    # "Wels": "",
+    "xB": "#008b8b",
     "Xisuma": "#7b68ee",
-    "Zedaph": "#ff93bc",
-    "ZombieCleo": "#008b8b",
+    "Zed": "#ff93bc",
+    "Cleo": "#008b8b",
 }
 
 
@@ -387,15 +404,23 @@ def plot(
 # TODO: fill in gaps where we don't have deck data with NAN
 def fill_gaps():
     ...
+
+
 # TODO: extrapolate deck value when values are missing
 
 
 # %%
+a = calculate_deck_stats(card_tracking_sheet, "size")
+
+# %%
+a
+
+# %%
 fig, sub_plots = plot(
     [
-        calculate_deck_stats(parsed_html_sheet,"size"),
-        calculate_deck_stats(parsed_html_sheet,"power"),
-        calculate_deck_stats(parsed_html_sheet,"efficiency"),
+        calculate_deck_stats(card_tracking_sheet, "size"),
+        calculate_deck_stats(card_tracking_sheet, "power"),
+        calculate_deck_stats(card_tracking_sheet, "efficiency"),
     ],
     [
         "Deck Size",
@@ -416,7 +441,7 @@ def iter_lines(e: MouseEvent) -> Iterator[tuple[Axes, Line2D, Annotation]]:
         }
         for line in cur_plot.lines:
             assert isinstance(line, Line2D)
-            label=line.get_label()
+            label = line.get_label()
             assert isinstance(label, str)
             yield cur_plot, line, annotations[label]
 
