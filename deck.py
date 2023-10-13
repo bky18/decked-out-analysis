@@ -130,14 +130,12 @@ class Deck:
     """
 
     cards: dict[str, int]
-    allow_negative: bool
 
     def __init__(
         self, source: dict[str, int] | None = None, allow_negative: bool = False
     ):
         # by default, the count of a card is 0
         self.cards = defaultdict(lambda: 0, source or {})
-
         if not allow_negative:
             for card, count in self.cards.items():
                 if count < 0:
