@@ -401,15 +401,6 @@ def plot(
 
 
 # %%
-# TODO: fill in gaps where we don't have deck data with NAN
-def fill_gaps():
-    ...
-
-
-# TODO: extrapolate deck value when values are missing
-
-
-# %%
 a = calculate_deck_stats(card_tracking_sheet, "size")
 
 # %%
