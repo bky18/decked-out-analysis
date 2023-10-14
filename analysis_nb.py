@@ -331,6 +331,7 @@ class LineInfo:
     Stores all of the Line2D artists and Annotations that should be associated together.
     """
 
+    fig: "DeckStatsFigure" = field(repr=False)
     annotations: dict[Axes, list[Annotation]] = field(
         default_factory=lambda: defaultdict(list)
     )
@@ -356,7 +357,7 @@ class LineInfo:
             for lines in self.annotations.values():
                 yield from lines
 
-    def focus(self, fig: "DeckStatsFigure", plots: list[Axes] | None = None) -> bool:
+    def focus(self, plots: list[Axes] | None = None) -> bool:
         """
         Emphasize the line on a specific plot.
 
@@ -364,8 +365,6 @@ class LineInfo:
 
         Parameters
         ----------
-        fig : DeckStatsFigure
-            The figure containing the lines.
         plots : list[Axes] | None, optional
             The list of plots where the lines should be focused.
             Will apply to all plots by default.
@@ -377,10 +376,10 @@ class LineInfo:
         """
         name = self.name
         # can't focus on hidden lines
-        if name in fig.hidden_lines:
+        if name in self.fig.hidden_lines:
             return False
         # return false if no changes applies
-        if name in fig.focused_lines:
+        if name in self.fig.focused_lines:
             return False
 
         for line in self.iter_lines(plots):
@@ -392,11 +391,11 @@ class LineInfo:
             anno.set_fontweight("bold")
 
         # update the figure's state
-        fig.unfocused_lines.remove(name)
-        fig.focused_lines.add(name)
+        self.fig.unfocused_lines.remove(name)
+        self.fig.focused_lines.add(name)
         return True
 
-    def unfocus(self, fig: "DeckStatsFigure", plots: list[Axes] | None = None) -> bool:
+    def unfocus(self, plots: list[Axes] | None = None) -> bool:
         """
         Deemphasize the line on a specific plot.
 
@@ -404,8 +403,6 @@ class LineInfo:
 
         Parameters
         ----------
-        fig : DeckStatsFigure
-            The figure containing the lines.
         plots : list[Axes] | None, optional
             The list of plots where the lines should be unfocused.
             Will apply to all plots by default.
@@ -417,10 +414,10 @@ class LineInfo:
         """
         name = self.name
         # can't focus on hidden lines
-        if name in fig.hidden_lines:
+        if name in self.fig.hidden_lines:
             return False
         # return false if no changes applies
-        if name in fig.unfocused_lines:
+        if name in self.fig.unfocused_lines:
             return False
 
         for line in self.iter_lines(plots):
@@ -432,19 +429,17 @@ class LineInfo:
             anno.set_fontweight("normal")
 
         # update the figure's state
-        fig.unfocused_lines.add(name)
-        fig.focused_lines.remove(name)
+        self.fig.unfocused_lines.add(name)
+        self.fig.focused_lines.remove(name)
 
         return True
 
-    def show(self, fig: "DeckStatsFigure", plots: list[Axes] | None = None) -> bool:
+    def show(self, plots: list[Axes] | None = None) -> bool:
         """
         Show the lines in the specified plots.
 
         Parameters
         ----------
-        fig : DeckStatsFigure
-            The figure containing the lines.
         plots : list[Axes] | None, optional
             The list of plots where the lines should shown.
             Will apply to all plots by default.
@@ -456,7 +451,7 @@ class LineInfo:
         """
         # skip if visibility won't be changed
         name = self.name
-        if name in fig.visible_lines:
+        if name in self.fig.visible_lines:
             return False
 
         for a in self.iter_annotations(plots):
@@ -466,20 +461,18 @@ class LineInfo:
             l.set_visible(True)
 
         # update the state
-        fig.hidden_lines.remove(name)
-        fig.visible_lines.add(name)
-        fig.unfocused_lines.add(name)
+        self.fig.hidden_lines.remove(name)
+        self.fig.visible_lines.add(name)
+        self.fig.unfocused_lines.add(name)
 
         return True
 
-    def hide(self, fig: "DeckStatsFigure", plots: list[Axes] | None = None) -> bool:
+    def hide(self, plots: list[Axes] | None = None) -> bool:
         """
         Hide the lines in the specified plots.
 
         Parameters
         ----------
-        fig : DeckStatsFigure
-            The figure containing the lines.
         plots : list[Axes] | None, optional
             The list of plots where the lines should be hidden.
             Will apply to all plots by default.
@@ -491,7 +484,7 @@ class LineInfo:
         """
         # skip if visibility won't be changed
         name = self.name
-        if name in fig.hidden_lines:
+        if name in self.fig.hidden_lines:
             return False
 
         for a in self.iter_annotations(plots):
@@ -501,14 +494,14 @@ class LineInfo:
             l.set_visible(False)
 
         # update the state
-        fig.hidden_lines.add(name)
-        fig.visible_lines.remove(name)
+        self.fig.hidden_lines.add(name)
+        self.fig.visible_lines.remove(name)
 
         # hidden lines can't be focused
-        if name in fig.focused_lines:
-            fig.focused_lines.remove(name)
-        if name in fig.unfocused_lines:
-            fig.unfocused_lines.remove(name)
+        if name in self.fig.focused_lines:
+            self.fig.focused_lines.remove(name)
+        if name in self.fig.unfocused_lines:
+            self.fig.unfocused_lines.remove(name)
         return True
 
     @ft.cached_property
@@ -564,7 +557,7 @@ class DeckStatsFigure(Figure):
             figsize = (16, 9)
         super().__init__(*args, **kwargs)
         self.color_map = color_map
-        self.lines_ = defaultdict(LineInfo)
+        self.lines_ = defaultdict(lambda: LineInfo(fig=self))
         self.deck_data = deck_data
         rows = len(self.deck_data)
 
@@ -708,11 +701,11 @@ class DeckStatsFigure(Figure):
                 is_hovered = cur_artist.contains(event)[0]
                 # skip over line if not hovered over
                 if is_hovered:
-                    if line_info.focus(fig=self, plots=[ax]):
+                    if line_info.focus(plots=[ax]):
                         lines_updated = True
                         break
                 else:
-                    if line_info.unfocus(fig=self, plots=[ax]):
+                    if line_info.unfocus(plots=[ax]):
                         lines_updated = True
                         break
 
@@ -739,10 +732,10 @@ class DeckStatsFigure(Figure):
         # only hide lines if it won't hide all the lines
         if lines_to_hide != self.visible_lines:
             for label in lines_to_hide:
-                self.lines_[label].hide(fig=self)
+                self.lines_[label].hide()
 
         for label in lines_to_show:
-            self.lines_[label].show(fig=self)
+            self.lines_[label].show()
 
 
 # %%
@@ -773,7 +766,7 @@ COLOR_MAP = {
     "Zed": "#ff93bc",
     "Cleo": "#008b8b",
 }
-fig = plt.figure(
+FIG = plt.figure(
     FigureClass=DeckStatsFigure,
     deck_data={
         "Deck Size": calculate_deck_stats(card_tracking_sheet, "size"),
