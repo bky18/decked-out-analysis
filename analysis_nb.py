@@ -3,8 +3,12 @@
 # NOTE: try `%matplotlib inline`` if this gives you problems
 
 
+import functools as ft
+import itertools as it
 from collections import defaultdict
 from collections.abc import Sequence
+from dataclasses import dataclass
+from dataclasses import field
 from typing import Any
 from typing import Callable
 from typing import Iterator
@@ -15,10 +19,8 @@ import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
 from matplotlib.axes import Axes
-from matplotlib.backend_bases import Event
 from matplotlib.backend_bases import MouseButton
 from matplotlib.backend_bases import MouseEvent
-from matplotlib.backend_bases import PickEvent
 from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 from matplotlib.text import Annotation
@@ -353,7 +355,7 @@ COLOR_MAP = {
 
 
 # %%
-def add_annotation(ax: Axes, line: Line2D):
+def add_annotation(ax: Axes, line: Line2D) -> Annotation | None:
     # get coordinates where each line ends
     x = -1
     y = -1
@@ -368,7 +370,7 @@ def add_annotation(ax: Axes, line: Line2D):
 
     # don't annotate lines with a prefix
     if not prefix:
-        ax.annotate(
+        return ax.annotate(
             player_label,
             xy=(x, y),
             xytext=(0, 0),
@@ -446,118 +448,387 @@ def plot(
 
 
 # %%
-fig, sub_plots = plot(
-    [
-        calculate_deck_stats(card_tracking_sheet, "size"),
-        calculate_deck_stats(card_tracking_sheet, "power"),
-        calculate_deck_stats(card_tracking_sheet, "efficiency"),
-    ],
-    [
-        "Deck Size",
-        "Deck Power",
-        "Deck Efficiency",
-    ],
-)
+@dataclass
+class LineInfo:
+    """
+    Stores all of the Line2D artists and Annotations that should be associated together.
+    """
 
+    annotations: dict[Axes, list[Annotation]] = field(
+        default_factory=lambda: defaultdict(list)
+    )
+    line_artists: dict[Axes, list[Line2D]] = field(
+        default_factory=lambda: defaultdict(list)
+    )
 
-# %%
-def iter_lines(e: MouseEvent) -> Iterator[tuple[str, list[Line2D], Annotation]]:
-    """Helper function to iterate over all the labels, lines and annotations from a MouseEvent"""
-    for cur_plot in e.canvas.figure.axes:
-        annotations = {
-            a.get_text(): a
-            for a in cur_plot.get_children()
-            if isinstance(a, Annotation)
-        }
-        # stores all the lines that should be associated with a single label
-        lines: defaultdict[str, list[Line2D]] = defaultdict(list)
-        for line in cur_plot.lines:
-            assert isinstance(line, Line2D)
-
-            label = line.get_label()
-            assert isinstance(label, str)
-            *_, label = label.split("-")
-            lines[label].append(line)
-
-        for label, lines in lines.items():
-            yield label, lines, annotations[label]
-
-
-# %%
-def on_hover(event: MouseEvent):
-    def _bring_to_front(line):
-        # bring line to the front
-        line.set_zorder(1)
-        line.set_linewidth(2)
-
-    def _send_to_back(line):
-        line.set_zorder(0)
-        line.set_linewidth(1)
-
-    # if any line in the group are hovered, bring them all to the front
-    for _, lines, annotation in iter_lines(event):
-        if any(line.contains(event)[0] for line in lines):
-            handler = _bring_to_front
-            annotation.set_zorder(1)
-            annotation.set_fontweight("bold")
+    def iter_lines(self, plots: list[Axes] | None = None) -> Iterator[Line2D]:
+        """Iterate over all the `Line2D`s in this object."""
+        if plots:
+            for ax in plots:
+                yield from self.line_artists[ax]
         else:
-            handler = _send_to_back
-            annotation.set_zorder(0)
-            annotation.set_fontweight("normal")
+            for lines in self.line_artists.values():
+                yield from lines
 
-        for line in lines:
-            handler(line)
+    def iter_annotations(self, plots: list[Axes] | None = None) -> Iterator[Annotation]:
+        """Iterate over all the `Annotation`s in this object."""
+        if plots:
+            for ax in plots:
+                yield from self.annotations[ax]
+        else:
+            for lines in self.annotations.values():
+                yield from lines
+
+    def focus(self, fig: "DeckStatsFigure", plots: list[Axes] | None = None) -> bool:
+        """
+        Emphasize the line on a specific plot.
+
+        Make the line and text bold, and bring to front.
+        """
+        name = self.name
+        # can't focus on hidden lines
+        if name in fig.hidden_lines:
+            return False
+        # return false if no changes applies
+        if name in fig.focused_lines:
+            return False
+
+        for line in self.iter_lines(plots):
+            line.set_zorder(1)
+            line.set_linewidth(2)
+
+        for anno in self.iter_annotations(plots):
+            anno.set_zorder(1)
+            anno.set_fontweight("bold")
+
+        # update the figure's state
+        fig.unfocused_lines.remove(name)
+        fig.focused_lines.add(name)
+        # print(f"{fig.unfocused_lines=}")
+        # print(f"{fig.focused_lines=}")
+        return True
+
+    def unfocus(self, fig: "DeckStatsFigure", plots: list[Axes] | None = None) -> bool:
+        """
+        Deemphasize the line on a specific plot.
+
+        Make the line and text normal, and bring to back.
+        """
+        name = self.name
+        # can't focus on hidden lines
+        if name in fig.hidden_lines:
+            return False
+        # return false if no changes applies
+        if name in fig.unfocused_lines:
+            return False
+
+        for line in self.iter_lines(plots):
+            line.set_zorder(0)
+            line.set_linewidth(1)
+
+        for anno in self.iter_annotations(plots):
+            anno.set_zorder(0)
+            anno.set_fontweight("normal")
+
+        # update the figure's state
+        fig.unfocused_lines.add(name)
+        fig.focused_lines.remove(name)
+
+        return True
+
+    def set_visibility(
+        self, visibility: bool, fig: "DeckStatsFigure", plots: list[Axes] | None = None
+    ) -> bool:
+        """
+        Show/Hide the lines in the specified plots.
 
 
-# %%
-def set_visibility(event: MouseEvent, lines: set[str], visibility: bool):
-    for label, ls, a in iter_lines(event):
-        if label in lines:
-            for l in ls:
-                l.set_visible(visibility)
+        Parameters
+        ----------
+        visibility : bool
+            The visibility of the line.
+        fig : DeckStatsFigure
+            The figure containing the lines.
+        plots : list[Axes] | None, optional
+            The list of plots where the lines should have their visibility set.
+            Will apply to all plots by default.
+
+        Returns
+        -------
+        bool
+            True if the visibility of any of the line was changed.
+        """
+        # returns True if visibility was updated
+        # skip if visibility won't be changed
+        name = self.name
+        if visibility == True and name in fig.visible_lines:
+            return False
+        elif visibility == False and name in fig.hidden_lines:
+            return False
+
+        for a in self.iter_annotations(plots):
             a.set_visible(visibility)
 
+        for l in self.iter_lines(plots):
+            l.set_visible(visibility)
 
-def on_pick(event: PickEvent):
-    lines_to_show: set[str] = set()
-    lines_to_hide: set[str] = set()
-    line_clicked = False
-    for label, lines, _ in iter_lines(event.mouseevent):
-        line_is_visible = any(line.get_visible() for line in lines)
-        assert isinstance(label, str)
-        # skip if we already have the info
-        if label in lines_to_show:
-            continue
+        # update the state
+        if visibility == True:
+            fig.hidden_lines.remove(name)
+            fig.visible_lines.add(name)
 
-        if event.mouseevent.button == MouseButton.RIGHT:
-            if line_is_visible and any(
-                line.contains(event.mouseevent)[0] for line in lines
+            fig.unfocused_lines.add(name)
+        else:
+            fig.hidden_lines.add(name)
+            fig.visible_lines.remove(name)
+
+            # hidden lines can't be focused
+            # self.unfocus()
+            print(f"unfocusing on hide: {name}")
+            if name in fig.focused_lines:
+                fig.focused_lines.remove(name)
+            if name in fig.unfocused_lines:
+                fig.unfocused_lines.remove(name)
+                # print(f"{fig.unfocused_lines=}")
+                # print(f"{fig.focused_lines=}")
+        return True
+
+    # @property
+    @ft.cached_property
+    def name(self) -> str:
+        found_names: set[str] = set()
+
+        for line in self.iter_lines():
+            # strip any suffixes
+            *_, label = line.get_label().split("-")
+
+            found_names.add(label)
+
+        num_names = len(found_names)
+        if num_names == 0:
+            raise ValueError(f"No names were found")
+        elif num_names != 1:
+            raise ValueError(f"Conflicting names were found: {', '.join(found_names)}")
+
+        return found_names.pop()
+
+
+class DeckStatsFigure(Figure):
+    """
+    Custom figure for plotting the deck data.
+
+    Attributes
+    ----------
+    deck_data : dict[str, pd.DataFrame]
+        A map of the data frames that should be plotted, and the titles of each plot.
+    lines : dict[str, LineInfo]
+        A map of all the Line2D artists, and annotations that should be associated with
+        a player's name.
+    """
+
+    deck_data: dict[str, pd.DataFrame]
+    lines_: defaultdict[str, LineInfo]
+    focused_lines: set[str]
+    unfocused_lines: set[str]
+    hidden_lines: set[str]
+    visible_lines: set[str]
+
+    def __init__(
+        self,
+        deck_data: dict[str, pd.DataFrame],
+        *args,
+        figsize: tuple[int, int] | None = None,
+        **kwargs,
+    ):
+        if not figsize:
+            figsize = (16, 9)
+        super().__init__(*args, **kwargs)
+        self.lines_ = defaultdict(LineInfo)
+        self.deck_data = deck_data
+        rows = len(self.deck_data)
+
+        # create each figure
+        for i, (title, df) in enumerate(self.deck_data.items(), start=1):
+            ax = self.add_subplot(rows, 1, i)
+            self.plot_dataframe(ax, df, title)
+
+        self.focused_lines = set()
+        self.hidden_lines = set()
+        self.unfocused_lines = set(self.lines_)
+        self.visible_lines = set(self.lines_)
+
+        self.set_figheight(figsize[0])
+        self.set_figwidth(figsize[1])
+        # add event handlers
+        self.canvas.mpl_connect("button_press_event", self.on_click)
+        self.canvas.mpl_connect("motion_notify_event", self.on_hover)
+
+    def plot_series(self, ax: Axes, s: pd.Series, label: str):
+        """
+        Plots the series in the given sub plot.
+
+        Parameters
+        ----------
+        ax : Axes
+            The subplot to plot the series in.
+        s : pd.Series
+            The series to be plotted
+        label : str
+            The name to be associated with the series.
+
+        Returns
+        -------
+        LineInfo
+            All of the associated information about the plotted line.
+        """
+        # matplotlib automatically interpolates intermediate values if they're missing and not set to NAN
+        interpolated_s = s[np.isfinite(s)]
+
+        # Iterate over the missing values series, and remove all consecutive points
+        # so that the two plots don't overlap
+        indices_to_drop = set()
+        for idx_val in interpolated_s.index[1:-1]:
+            # only keep values if one of the adjacent values are missing
+            if idx_val + 1 in interpolated_s and idx_val - 1 in interpolated_s:
+                indices_to_drop.add(idx_val)
+
+        # handle the first and last indices as special cases
+        first_idx_val = interpolated_s.index[0]
+        if first_idx_val + 1 in interpolated_s:
+            indices_to_drop.add(first_idx_val)
+
+        last_idx_val = interpolated_s.index[0]
+        if last_idx_val - 1 in interpolated_s:
+            indices_to_drop.add(last_idx_val)
+
+        # replace the duplicate values with nan
+        for idx in indices_to_drop:
+            interpolated_s[idx] = np.nan
+
+        # plot the lines
+        interp_line = ax.plot(
+            interpolated_s.index,
+            interpolated_s,
+            label=f"interp-{label}",
+            ls="--",
+        )[0]
+        main_line = ax.plot(s.index, s, label=label)[0]
+
+        # set the line color
+        interp_line.set_color(COLOR_MAP[label])
+        main_line.set_color(COLOR_MAP[label])
+
+        # get the coordinates of the end of the line
+        reversed_coords = reversed(list(s.items()))
+        (x, y) = (np.nan, np.nan)
+        while np.isnan(y) or np.isnan(x):
+            x, y = next(reversed_coords)
+
+        # add annotation to the end of the main line
+        annotation = ax.annotate(
+            label,
+            xy=(x, y),
+            xytext=(0, 0),
+            color=COLOR_MAP[label],
+            xycoords=(ax.get_xaxis_transform(), ax.get_yaxis_transform()),
+            textcoords="offset points",
+        )
+
+        # send all lines to the back
+        main_line.set_zorder(0)
+        interp_line.set_zorder(0)
+        annotation.set_zorder(0)
+
+        # allow to be picked
+        main_line.set_picker(5)
+        interp_line.set_picker(5)
+        # annotation.set_picker(5)
+
+        # save references to new lines and annotation
+        if self.lines_[label] is None:
+            self.lines_[label] = LineInfo(label, self)
+
+        self.lines_[label].annotations[ax].append(annotation)
+        self.lines_[label].line_artists[ax] += [main_line, interp_line]
+
+    def plot_dataframe(self, ax: Axes, df: pd.DataFrame, title: str):
+        """
+        Plots the dataframe.
+
+        Parameters
+        ----------
+        ax : Axes
+            The subplot to plot the data frame in.
+        df : pd.DataFrame
+            The data to be plotted.
+        title : str
+            The title of the sub plot.
+        """
+        # drop the first row which is the "current stats" row
+        df = df.iloc[1:, :]
+        # Using Int8 means max of 255 runs
+        df.index = df.index.astype(pd.UInt8Dtype())
+
+        # for col in df:
+
+        for col in df:
+            df.loc[:, col] = pd.to_numeric(df[col])
+
+            player_series = df[col]
+            self.plot_series(ax, player_series, col)
+        ax.set_title(title)
+        ax.set_facecolor("#1b2032")
+
+    def on_hover(self, event: MouseEvent):
+        """Event handler for emphasizing lines when hovered over with the mouse."""
+        # if any line in the group are hovered, bring them all to the front
+        ax = event.inaxes
+        if not ax:
+            return
+
+        lines_updated = False
+        for cur_label, line_info in self.lines_.items():
+            for cur_artist in it.chain(
+                line_info.line_artists[ax], line_info.annotations[ax]
             ):
-                line_clicked = True
-                lines_to_hide.add(label)
+                is_hovered = cur_artist.contains(event)[0]
+                # skip over line if not hovered over
+                if is_hovered:
+                    if line_info.focus(fig=self, plots=[ax]):
+                        lines_updated = True
+                        break
+                else:
+                    if line_info.unfocus(fig=self, plots=[ax]):
+                        lines_updated = True
+                        break
 
-        elif event.mouseevent.button == MouseButton.LEFT:
-            if line_is_visible:
-                if any(line.contains(event.mouseevent)[0] for line in lines):
-                    lines_to_show.add(label)
-                    line_clicked = True
-                elif any(line not in lines_to_show for line in lines):
-                    lines_to_hide.add(label)
+        if lines_updated:
+            self.canvas.draw_idle()
+
+    def on_click(self, event: MouseEvent):
+        """Event handler for hiding/showing lines when they are clicked."""
+        if event.button == MouseButton.LEFT:
+            # hide unfocused lines if there are any
+            if self.unfocused_lines:
+                for label in self.unfocused_lines.copy():
+                    self.lines_[label].set_visibility(False, fig=self)
+            # else, show all hidden lines
             else:
-                lines_to_show.add(label)
-
-    lines_to_hide -= lines_to_show
-    if line_clicked and lines_to_hide:
-        set_visibility(event.mouseevent, lines_to_hide, False)
-    elif lines_to_show:
-        set_visibility(event.mouseevent, lines_to_show, True)
+                for label in self.hidden_lines.copy():
+                    self.lines_[label].set_visibility(True, fig=self)
+        elif event.button == MouseButton.RIGHT:
+            # hide the focused lines
+            for label in self.focused_lines.copy():
+                self.lines_[label].set_visibility(False, fig=self)
 
 
 # %%
-for line in sub_plots:
-    line.set_picker(5)
-
-fig.canvas.mpl_connect("motion_notify_event", on_hover)
-fig.canvas.mpl_connect("pick_event", on_pick)
-
-plt.tight_layout()
+fig = plt.figure(
+    FigureClass=DeckStatsFigure,
+    deck_data={
+        "Deck Size": calculate_deck_stats(card_tracking_sheet, "size"),
+        "Deck Power": calculate_deck_stats(card_tracking_sheet, "power"),
+        "Deck Efficiency": calculate_deck_stats(card_tracking_sheet, "efficiency"),
+    },
+    tight_layout=True,
+)
