@@ -559,7 +559,6 @@ class DeckStatsFigure(Figure):
         players = set()
         for d in deck_data.values():
             players |= set(d.columns)
-            print(players)
 
         missing_players = players - set(run_data["hermit"])
         if missing_players:
