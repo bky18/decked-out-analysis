@@ -639,11 +639,6 @@ class DeckStatsFigure(Figure):
         interp_line.set_zorder(0)
         annotation.set_zorder(0)
 
-        # allow to be picked
-        main_line.set_picker(5)
-        interp_line.set_picker(5)
-        # annotation.set_picker(5)
-
         # save references to new lines and annotation
         if self.lines_[label] is None:
             self.lines_[label] = LineInfo(label, self)
