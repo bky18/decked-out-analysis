@@ -390,6 +390,19 @@ class LineInfo:
         Emphasize the line on a specific plot.
 
         Make the line and text bold, and bring to front.
+
+        Parameters
+        ----------
+        fig : DeckStatsFigure
+            The figure containing the lines.
+        plots : list[Axes] | None, optional
+            The list of plots where the lines should be focused.
+            Will apply to all plots by default.
+
+        Returns
+        -------
+        bool
+            False if the line's focus was not changed.
         """
         name = self.name
         # can't focus on hidden lines
@@ -417,6 +430,19 @@ class LineInfo:
         Deemphasize the line on a specific plot.
 
         Make the line and text normal, and bring to back.
+
+        Parameters
+        ----------
+        fig : DeckStatsFigure
+            The figure containing the lines.
+        plots : list[Axes] | None, optional
+            The list of plots where the lines should be unfocused.
+            Will apply to all plots by default.
+
+        Returns
+        -------
+        bool
+            False if the line's focus was not changed.
         """
         name = self.name
         # can't focus on hidden lines
@@ -440,60 +466,80 @@ class LineInfo:
 
         return True
 
-    def set_visibility(
-        self, visibility: bool, fig: "DeckStatsFigure", plots: list[Axes] | None = None
-    ) -> bool:
+    def show(self, fig: "DeckStatsFigure", plots: list[Axes] | None = None) -> bool:
         """
-        Show/Hide the lines in the specified plots.
-
+        Show the lines in the specified plots.
 
         Parameters
         ----------
-        visibility : bool
-            The visibility of the line.
         fig : DeckStatsFigure
             The figure containing the lines.
         plots : list[Axes] | None, optional
-            The list of plots where the lines should have their visibility set.
+            The list of plots where the lines should shown.
             Will apply to all plots by default.
 
         Returns
         -------
         bool
-            True if the visibility of any of the line was changed.
+            False if the visibility was not changed.
         """
-        # returns True if visibility was updated
         # skip if visibility won't be changed
         name = self.name
-        if visibility == True and name in fig.visible_lines:
-            return False
-        elif visibility == False and name in fig.hidden_lines:
+        if name in fig.visible_lines:
             return False
 
         for a in self.iter_annotations(plots):
-            a.set_visible(visibility)
+            a.set_visible(True)
 
         for l in self.iter_lines(plots):
-            l.set_visible(visibility)
+            l.set_visible(True)
 
         # update the state
-        if visibility == True:
-            fig.hidden_lines.remove(name)
-            fig.visible_lines.add(name)
+        fig.hidden_lines.remove(name)
+        fig.visible_lines.add(name)
+        fig.unfocused_lines.add(name)
 
-            fig.unfocused_lines.add(name)
-        else:
-            fig.hidden_lines.add(name)
-            fig.visible_lines.remove(name)
-
-            # hidden lines can't be focused
-            if name in fig.focused_lines:
-                fig.focused_lines.remove(name)
-            if name in fig.unfocused_lines:
-                fig.unfocused_lines.remove(name)
         return True
 
-    # @property
+    def hide(self, fig: "DeckStatsFigure", plots: list[Axes] | None = None) -> bool:
+        """
+        Hide the lines in the specified plots.
+
+        Parameters
+        ----------
+        fig : DeckStatsFigure
+            The figure containing the lines.
+        plots : list[Axes] | None, optional
+            The list of plots where the lines should be hidden.
+            Will apply to all plots by default.
+
+        Returns
+        -------
+        bool
+            False if the visibility was not changed.
+        """
+        # skip if visibility won't be changed
+        name = self.name
+        if name in fig.hidden_lines:
+            return False
+
+        for a in self.iter_annotations(plots):
+            a.set_visible(False)
+
+        for l in self.iter_lines(plots):
+            l.set_visible(False)
+
+        # update the state
+        fig.hidden_lines.add(name)
+        fig.visible_lines.remove(name)
+
+        # hidden lines can't be focused
+        if name in fig.focused_lines:
+            fig.focused_lines.remove(name)
+        if name in fig.unfocused_lines:
+            fig.unfocused_lines.remove(name)
+        return True
+
     @ft.cached_property
     def name(self) -> str:
         found_names: set[str] = set()
@@ -664,8 +710,6 @@ class DeckStatsFigure(Figure):
         # Using Int8 means max of 255 runs
         df.index = df.index.astype(pd.UInt8Dtype())
 
-        # for col in df:
-
         for col in df:
             df.loc[:, col] = pd.to_numeric(df[col])
 
@@ -702,19 +746,21 @@ class DeckStatsFigure(Figure):
 
     def on_click(self, event: MouseEvent):
         """Event handler for hiding/showing lines when they are clicked."""
+        # TODO: skip if all lines would be hidden
+        # TODO: refactor, create separate list for lines to hide
         if event.button == MouseButton.LEFT:
             # hide unfocused lines if there are any
             if self.unfocused_lines:
                 for label in self.unfocused_lines.copy():
-                    self.lines_[label].set_visibility(False, fig=self)
+                    self.lines_[label].hide(fig=self)
             # else, show all hidden lines
             else:
                 for label in self.hidden_lines.copy():
-                    self.lines_[label].set_visibility(True, fig=self)
+                    self.lines_[label].show(fig=self)
         elif event.button == MouseButton.RIGHT:
             # hide the focused lines
             for label in self.focused_lines.copy():
-                self.lines_[label].set_visibility(False, fig=self)
+                self.lines_[label].hide(fig=self)
 
 
 # %%
