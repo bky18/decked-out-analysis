@@ -463,7 +463,8 @@ class LineInfo:
         # update the state
         self.fig.hidden_lines.remove(name)
         self.fig.visible_lines.add(name)
-        self.fig.unfocused_lines.add(name)
+        self.fig.focused_lines.add(name)
+        self.unfocus(plots)
 
         return True
 
@@ -498,8 +499,7 @@ class LineInfo:
         self.fig.visible_lines.remove(name)
 
         # hidden lines can't be focused
-        if name in self.fig.focused_lines:
-            self.fig.focused_lines.remove(name)
+        self.unfocus(plots)
         if name in self.fig.unfocused_lines:
             self.fig.unfocused_lines.remove(name)
         return True
