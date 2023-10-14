@@ -538,6 +538,7 @@ class DeckStatsFigure(Figure):
     """
 
     deck_data: dict[str, pd.DataFrame]
+    run_data: dict[str, pd.DataFrame]
     lines_: defaultdict[str, LineInfo]
     focused_lines: set[str]
     unfocused_lines: set[str]
@@ -548,17 +549,33 @@ class DeckStatsFigure(Figure):
     def __init__(
         self,
         deck_data: dict[str, pd.DataFrame],
+        run_data: dict[str, pd.DataFrame],
         *args,
         color_map: dict[str, ColorType],
         figsize: tuple[int, int] | None = None,
         **kwargs,
     ):
+        # validate that we have run data for each of the players in the deck data sheet
+        players = set()
+        for d in deck_data.values():
+            players |= set(d.columns)
+            print(players)
+
+        missing_players = players - set(run_data["hermit"])
+        if missing_players:
+            raise ValueError(
+                "Missing run data for the following players: "
+                + ", ".join(missing_players)
+            )
+
         if not figsize:
             figsize = (16, 9)
         super().__init__(*args, **kwargs)
         self.color_map = color_map
         self.lines_ = defaultdict(lambda: LineInfo(fig=self))
         self.deck_data = deck_data
+        self.run_data = run_data
+
         rows = len(self.deck_data)
 
         # create each figure
@@ -773,6 +790,7 @@ FIG = plt.figure(
         "Deck Power": calculate_deck_stats(card_tracking_sheet, "power"),
         "Deck Efficiency": calculate_deck_stats(card_tracking_sheet, "efficiency"),
     },
+    run_data=card_tracking_sheet,
     color_map=COLOR_MAP,
     tight_layout=True,
 )
