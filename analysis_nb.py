@@ -24,6 +24,7 @@ from matplotlib.backend_bases import MouseEvent
 from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 from matplotlib.text import Annotation
+from matplotlib.typing import ColorType
 
 import data
 import deck
@@ -324,36 +325,6 @@ def calculate_deck_stats(
 
 
 # %%
-COLOR_MAP = {
-    "Bdubs": "#66822d",
-    "Cub": "#3086c8",
-    "Doc": "#228b22",
-    "Etho": "#68fdf6",
-    "False": "#ff69b4",
-    "Gem": "#00ff7f",
-    "Grian": "#dc143c",
-    "Hypno": "#000000",
-    "Jevin": "#469ec5",
-    "Impulse": "#f1c936",
-    "Iskall": "#9acd32",
-    "Joe": "#7cfc00",
-    "Keralis": "#ecfb01",
-    "Mumbo": "#ef6562",
-    "Pearl": "#ff4500",
-    "Ren": "#8b0024",
-    "Scar": "#fe8705",
-    "Stress": "#ff00ff",
-    "Tango": "#00ffff",
-    "Beef": "#562d19",
-    # "Wels": "",
-    "xB": "#008b8b",
-    "Xisuma": "#7b68ee",
-    "Zed": "#ff93bc",
-    "Cleo": "#008b8b",
-}
-
-
-# %%
 @dataclass
 class LineInfo:
     """
@@ -559,6 +530,7 @@ class LineInfo:
         return found_names.pop()
 
 
+# %%
 class DeckStatsFigure(Figure):
     """
     Custom figure for plotting the deck data.
@@ -578,17 +550,20 @@ class DeckStatsFigure(Figure):
     unfocused_lines: set[str]
     hidden_lines: set[str]
     visible_lines: set[str]
+    color_map: dict[str, ColorType]
 
     def __init__(
         self,
         deck_data: dict[str, pd.DataFrame],
         *args,
+        color_map: dict[str, ColorType],
         figsize: tuple[int, int] | None = None,
         **kwargs,
     ):
         if not figsize:
             figsize = (16, 9)
         super().__init__(*args, **kwargs)
+        self.color_map = color_map
         self.lines_ = defaultdict(LineInfo)
         self.deck_data = deck_data
         rows = len(self.deck_data)
@@ -661,8 +636,8 @@ class DeckStatsFigure(Figure):
         main_line = ax.plot(s.index, s, label=label)[0]
 
         # set the line color
-        interp_line.set_color(COLOR_MAP[label])
-        main_line.set_color(COLOR_MAP[label])
+        interp_line.set_color(self.color_map[label])
+        main_line.set_color(self.color_map[label])
 
         # get the coordinates of the end of the line
         reversed_coords = reversed(list(s.items()))
@@ -746,8 +721,6 @@ class DeckStatsFigure(Figure):
 
     def on_click(self, event: MouseEvent):
         """Event handler for hiding/showing lines when they are clicked."""
-        # TODO: skip if all lines would be hidden
-        # TODO: refactor, create separate list for lines to hide
         lines_to_hide = set()
         lines_to_show = set()
 
@@ -763,7 +736,6 @@ class DeckStatsFigure(Figure):
             lines_to_hide = self.focused_lines.copy()
 
         # update line visibility
-
         # only hide lines if it won't hide all the lines
         if lines_to_hide != self.visible_lines:
             for label in lines_to_hide:
@@ -774,6 +746,33 @@ class DeckStatsFigure(Figure):
 
 
 # %%
+COLOR_MAP = {
+    "Bdubs": "#66822d",
+    "Cub": "#3086c8",
+    "Doc": "#228b22",
+    "Etho": "#68fdf6",
+    "False": "#ff69b4",
+    "Gem": "#00ff7f",
+    "Grian": "#dc143c",
+    "Hypno": "#000000",
+    "Jevin": "#469ec5",
+    "Impulse": "#f1c936",
+    "Iskall": "#9acd32",
+    "Joe": "#7cfc00",
+    "Keralis": "#ecfb01",
+    "Mumbo": "#ef6562",
+    "Pearl": "#ff4500",
+    "Ren": "#8b0024",
+    "Scar": "#fe8705",
+    "Stress": "#ff00ff",
+    "Tango": "#00ffff",
+    "Beef": "#562d19",
+    # "Wels": "",
+    "xB": "#008b8b",
+    "Xisuma": "#7b68ee",
+    "Zed": "#ff93bc",
+    "Cleo": "#008b8b",
+}
 fig = plt.figure(
     FigureClass=DeckStatsFigure,
     deck_data={
@@ -781,5 +780,6 @@ fig = plt.figure(
         "Deck Power": calculate_deck_stats(card_tracking_sheet, "power"),
         "Deck Efficiency": calculate_deck_stats(card_tracking_sheet, "efficiency"),
     },
+    color_map=COLOR_MAP,
     tight_layout=True,
 )
