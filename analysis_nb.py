@@ -748,19 +748,29 @@ class DeckStatsFigure(Figure):
         """Event handler for hiding/showing lines when they are clicked."""
         # TODO: skip if all lines would be hidden
         # TODO: refactor, create separate list for lines to hide
+        lines_to_hide = set()
+        lines_to_show = set()
+
         if event.button == MouseButton.LEFT:
-            # hide unfocused lines if there are any
             if self.unfocused_lines:
-                for label in self.unfocused_lines.copy():
-                    self.lines_[label].hide(fig=self)
-            # else, show all hidden lines
+                # hide unfocused lines if there are any
+                lines_to_hide = self.unfocused_lines.copy()
             else:
-                for label in self.hidden_lines.copy():
-                    self.lines_[label].show(fig=self)
+                # else, show all hidden lines
+                lines_to_show = self.hidden_lines.copy()
         elif event.button == MouseButton.RIGHT:
             # hide the focused lines
-            for label in self.focused_lines.copy():
+            lines_to_hide = self.focused_lines.copy()
+
+        # update line visibility
+
+        # only hide lines if it won't hide all the lines
+        if lines_to_hide != self.visible_lines:
+            for label in lines_to_hide:
                 self.lines_[label].hide(fig=self)
+
+        for label in lines_to_show:
+            self.lines_[label].show(fig=self)
 
 
 # %%
