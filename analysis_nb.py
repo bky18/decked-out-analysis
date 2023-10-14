@@ -325,6 +325,43 @@ def calculate_deck_stats(
 
 
 # %%
+card_tracking_sheet
+
+# %%
+
+
+# TODO: display which phase the marker represents when hovered over
+def get_phase_run_number(
+    run_data: pd.DataFrame, phase_run_index: int = 0
+) -> dict[str, dict[int, int]]:
+    """
+    Gets the run number of each phase's first run, for each player.
+
+    Parameters
+    ----------
+    run_data : pd.DataFrame
+        The data frame containing run data for all of the players.
+
+    Returns
+    -------
+    dict[str, dict[int, int]]
+        Maps the phase number, to the run number of the specified run of that phase.
+    """
+    # add an extra value at the start to avoid having to offset by 1 when indexing runs
+    data: dict[str, dict[int, int]] = defaultdict(dict)
+
+    # get the lowest number for each phase
+    for player, player_run_data in run_data.groupby("hermit"):
+        for phase_num, phase_run_data in player_run_data.groupby("phase"):
+            phase_run_num = (
+                phase_run_data["hermit run number"].sort_values().iloc[phase_run_index]
+            )
+            data[player][phase_num] = phase_run_num
+
+    return data
+
+
+# %%
 @dataclass
 class LineInfo:
     """
@@ -383,8 +420,12 @@ class LineInfo:
             return False
 
         for line in self.iter_lines(plots):
+            # bring to front, make line thicker
             line.set_zorder(1)
             line.set_linewidth(2)
+
+            # make the markers bold
+            line.set_markeredgewidth(2)
 
         for anno in self.iter_annotations(plots):
             anno.set_zorder(1)
@@ -421,8 +462,12 @@ class LineInfo:
             return False
 
         for line in self.iter_lines(plots):
+            # send to back, make lines normal width
             line.set_zorder(0)
             line.set_linewidth(1)
+
+            # make the markers normal
+            line.set_markeredgewidth(1)
 
         for anno in self.iter_annotations(plots):
             anno.set_zorder(0)
@@ -593,7 +638,9 @@ class DeckStatsFigure(Figure):
         self.canvas.mpl_connect("button_press_event", self.on_click)
         self.canvas.mpl_connect("motion_notify_event", self.on_hover)
 
-    def plot_series(self, ax: Axes, s: pd.Series, label: str):
+    def plot_series(
+        self, ax: Axes, s: pd.Series, label: str, markevery: list[str] | None = None
+    ):
         """
         Plots the series in the given sub plot.
 
@@ -642,7 +689,14 @@ class DeckStatsFigure(Figure):
             label=f"interp-{label}",
             ls="--",
         )[0]
-        main_line = ax.plot(s.index, s, label=label)[0]
+        main_line = ax.plot(
+            s.index,
+            s,
+            label=label,
+            ls="-",
+            marker="|",
+            markevery=markevery or [],
+        )[0]
 
         # set the line color
         interp_line.set_color(self.color_map[label])
@@ -694,11 +748,15 @@ class DeckStatsFigure(Figure):
         # Using Int8 means max of 255 runs
         df.index = df.index.astype(pd.UInt8Dtype())
 
+        phase_markers = get_phase_run_number(self.run_data, -1)
+
         for col in df:
             df.loc[:, col] = pd.to_numeric(df[col])
 
             player_series = df[col]
-            self.plot_series(ax, player_series, col)
+            # have to subtract because markers use the index, not the x value?
+            player_phase_run_markers = [i - 1 for i in phase_markers[col].values()]
+            self.plot_series(ax, player_series, col, markevery=player_phase_run_markers)
         ax.set_title(title)
         ax.set_facecolor("#1b2032")
 
