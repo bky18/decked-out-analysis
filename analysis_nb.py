@@ -461,8 +461,8 @@ fig, sub_plots = plot(
 
 
 # %%
-def iter_lines(e: MouseEvent) -> Iterator[tuple[Axes, str, list[Line2D], Annotation]]:
-    """Helper function to iterate over all the axes, lables, lines and annotations from a MouseEvent"""
+def iter_lines(e: MouseEvent) -> Iterator[tuple[str, list[Line2D], Annotation]]:
+    """Helper function to iterate over all the labels, lines and annotations from a MouseEvent"""
     for cur_plot in e.canvas.figure.axes:
         annotations = {
             a.get_text(): a
@@ -480,7 +480,7 @@ def iter_lines(e: MouseEvent) -> Iterator[tuple[Axes, str, list[Line2D], Annotat
             lines[label].append(line)
 
         for label, lines in lines.items():
-            yield cur_plot, label, lines, annotations[label]
+            yield label, lines, annotations[label]
 
 
 # %%
@@ -495,7 +495,7 @@ def on_hover(event: MouseEvent):
         line.set_linewidth(1)
 
     # if any line in the group are hovered, bring them all to the front
-    for _, _, lines, annotation in iter_lines(event):
+    for _, lines, annotation in iter_lines(event):
         if any(line.contains(event)[0] for line in lines):
             handler = _bring_to_front
             annotation.set_zorder(1)
@@ -511,7 +511,7 @@ def on_hover(event: MouseEvent):
 
 # %%
 def set_visibility(event: MouseEvent, lines: set[str], visibility: bool):
-    for _, label, ls, a in iter_lines(event):
+    for label, ls, a in iter_lines(event):
         if label in lines:
             for l in ls:
                 l.set_visible(visibility)
@@ -522,7 +522,7 @@ def on_pick(event: PickEvent):
     lines_to_show: set[str] = set()
     lines_to_hide: set[str] = set()
     line_clicked = False
-    for _, label, lines, _ in iter_lines(event.mouseevent):
+    for label, lines, _ in iter_lines(event.mouseevent):
         line_is_visible = any(line.get_visible() for line in lines)
         assert isinstance(label, str)
         # skip if we already have the info
