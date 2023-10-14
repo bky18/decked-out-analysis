@@ -213,7 +213,6 @@ def parse_deck_data(data_frame: pd.DataFrame) -> pd.DataFrame:
         "run reference": str,
         "hermit run number": int,
         "ethereal cards": deck.Deck.from_str,
-        # "difficulty": lambda x: print(f"difficulty str {x}") or data.Difficulty.from_str(x),
         "level": data.DungeonLevel.from_str,
         # "result": data.Result.from_str,
         "purchases": deck.Deck.from_str,
@@ -504,8 +503,6 @@ class LineInfo:
         # update the figure's state
         fig.unfocused_lines.remove(name)
         fig.focused_lines.add(name)
-        # print(f"{fig.unfocused_lines=}")
-        # print(f"{fig.focused_lines=}")
         return True
 
     def unfocus(self, fig: "DeckStatsFigure", plots: list[Axes] | None = None) -> bool:
@@ -583,14 +580,10 @@ class LineInfo:
             fig.visible_lines.remove(name)
 
             # hidden lines can't be focused
-            # self.unfocus()
-            print(f"unfocusing on hide: {name}")
             if name in fig.focused_lines:
                 fig.focused_lines.remove(name)
             if name in fig.unfocused_lines:
                 fig.unfocused_lines.remove(name)
-                # print(f"{fig.unfocused_lines=}")
-                # print(f"{fig.focused_lines=}")
         return True
 
     # @property
