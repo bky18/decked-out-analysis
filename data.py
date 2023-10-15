@@ -136,7 +136,4 @@ class DungeonLevel(IntEnum):
 
 # TODO: Add histograms to graph survival rates for grouped by each hermit,
 # for each level/difficulty
-# TODO: add markers on each for the first run of each phase
-# TODO: generate titles for the graphs
 # TODO: de-clutter by removing inactive players
-# TODO: parse traced and other deck updates from the other sheet
