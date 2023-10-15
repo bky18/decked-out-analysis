@@ -1,9 +1,7 @@
 """Module for handling cards and decks."""
 import re
 from collections import defaultdict
-from dataclasses import InitVar
 from dataclasses import dataclass
-from dataclasses import field
 from enum import IntEnum
 from typing import ClassVar
 from typing import Self
@@ -16,8 +14,6 @@ class CardLevel(IntEnum):
     LEGENDARY = 4
     ETHEREAL = 5
 
-
-# ETHEREAL_CARDS: dict[str, "EtherealCard"] = {}
 
 CROWN_PRICE_POWER_FACTOR = 5
 EMBER_PRICE_POWER_FACTOR = 1
@@ -292,7 +288,7 @@ Card("Sneak", CardLevel.COMMON, 7, limit=5)
 Card("Stability", CardLevel.COMMON, 8, limit=5)
 Card("Treasure Hunter", CardLevel.COMMON, 9, limit=5)
 Card("Ember Seeker", CardLevel.COMMON, 10, limit=5)
-moc_power = (
+_moc_power = (
     6
     + Card.card_lookup["SNE"].power
     + Card.card_lookup["STA"].power
@@ -300,7 +296,7 @@ moc_power = (
     + Card.card_lookup["EMS"].power
 )
 # power is 40
-EtherealCard("Moment of Clarity", CardLevel.COMMON, 6, limit=None, power=moc_power)
+EtherealCard("Moment of Clarity", CardLevel.COMMON, 6, limit=None, power=_moc_power)
 
 # uncommon cards
 Card("Evasion", CardLevel.UNCOMMON, 16)
@@ -340,8 +336,8 @@ LegendaryCard("Cash Cow")
 LegendaryCard("Boots of Swiftness", permanent=True)
 
 # ethereal cards
-p2w_power = (Card.card_lookup["EMS"].power * 5) + 8  # power is 58
-taa_power = Card.card_lookup["EVA"].power + Card.card_lookup["TRH"].power + 2
-EtherealCard("Pay to Win", power=p2w_power, short_name="P2W")
-EtherealCard("Tactical Approach", limit=None, power=taa_power, permanent=True)
+_p2w_power = (Card.card_lookup["EMS"].power * 5) + 8  # power is 58
+_taa_power = Card.card_lookup["EVA"].power + Card.card_lookup["TRH"].power + 2
+EtherealCard("Pay to Win", power=_p2w_power, short_name="P2W")
+EtherealCard("Tactical Approach", limit=None, power=_taa_power, permanent=True)
 EtherealCard("Porkchop Power", limit=None, permanent=True)
