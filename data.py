@@ -1,3 +1,4 @@
+"""Module that contains classes for storing/modeling data parsed from the spreadsheet."""
 import re
 from enum import Enum
 from enum import IntEnum
@@ -15,7 +16,7 @@ def dtype(__enum: Type[Enum], /):
     return __enum
 
 
-NAMES = [
+NAMES = {
     "Bdubs",
     "Cub",
     "Doc",
@@ -41,7 +42,7 @@ NAMES = [
     "Xisuma",
     "Zed",
     "Cleo",
-]
+}
 Hermit = pd.CategoricalDtype(NAMES)
 
 # maps hermit's nicknames to full names
@@ -79,6 +80,12 @@ for aliases in _names:
     name = aliases[0]
     for alias in aliases:
         NAME_LOOKUP[alias.upper()] = name
+
+_missing_names = NAMES - set(NAME_LOOKUP.values())
+if _missing_names:
+    raise ValueError(
+        f"The following names have no aliases: {', '.join(_missing_names)}"
+    )
 
 
 @dtype
