@@ -1,37 +1,14 @@
 # %%
 # %matplotlib widget
-# NOTE: try `%matplotlib inline`` if this gives you problems
-
-
-import functools as ft
-import itertools as it
-from collections import defaultdict
-from collections.abc import Sequence
-from dataclasses import dataclass
-from dataclasses import field
-from typing import Any
-from typing import Callable
-from typing import Iterator
-from typing import Literal
-from typing import TypedDict
+# NOTE: try `%matplotlib inline` if this gives you problems
 
 import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
-from matplotlib.axes import Axes
-from matplotlib.backend_bases import MouseButton
-from matplotlib.backend_bases import MouseEvent
-from matplotlib.figure import Figure
-from matplotlib.lines import Line2D
-from matplotlib.text import Annotation
-from matplotlib.typing import ColorType
 
 import data.model
 import data.parse
 import data.plot
-
-
-# import deck
 
 
 pd.set_option("display.max_rows", 50)
@@ -42,5 +19,21 @@ pd.set_option("display.max_rows", 50)
 #
 
 # %%
+raw_deck_data, raw_run_data  = data.parse.get_card_tracking_data()
+deck_size_data = data.parse.calculate_deck_stats(raw_deck_data, "size")
+deck_power_data = data.parse.calculate_deck_stats(raw_deck_data, "power")
+deck_efficiency_data = data.parse.calculate_deck_stats(raw_deck_data, "efficiency")
+deck_data={
+    "Deck Size": deck_size_data,
+    "Deck Power": deck_power_data,
+    "Deck Efficiency": deck_efficiency_data,
+}
+
 # %%
-data.plot.DeckStatsFigure()
+FIG = plt.figure(
+    FigureClass=data.plot.DeckStatsFigure,
+    deck_data=deck_data,
+    run_data=raw_run_data,
+    color_map=data.plot.HERMIT_COLOR_MAP,
+    tight_layout=True,
+)
